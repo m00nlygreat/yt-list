@@ -48,7 +48,6 @@ button {
   opacity: 0;
   pointer-events: none;
   transition:
-    top 0.08s linear,
     opacity 1.5s cubic-bezier(0.16, 1, 0.3, 1),
     transform 1.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -115,6 +114,12 @@ button {
   display: block;
   position: absolute;
   inset: 0;
+}
+
+.app-dragging .yt-api-host,
+.app-dragging .yt-api-host iframe,
+.app-dragging .fallback-player {
+  pointer-events: none;
 }
 
 .drop-overlay {

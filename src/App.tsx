@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type {
-  CSSProperties,
-  DragEvent,
-  FormEvent,
-  KeyboardEvent,
-  MouseEvent as ReactMouseEvent,
-} from 'react'
+import type { DragEvent, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 import './App.css'
 import { createPlaylist, loadState, makeId, saveState } from './storage'
 import type { AppState, PanelSide, PlayMode, Playlist, PlaylistItem } from './types'
@@ -101,19 +95,24 @@ function droppedText(event: DragEvent<HTMLElement>): string {
   return droppedTextFromDataTransfer(event.dataTransfer)
 }
 
+function hasTextDrop(dataTransfer: DataTransfer | null): boolean {
+  return Array.from(dataTransfer?.types ?? []).some((type) =>
+    ['text/uri-list', 'text/plain', 'text'].includes(type),
+  )
+}
+
 function EdgeTrigger({ side, onShow }: { side: PanelSide; onShow: () => void }) {
-  const [cursorY, setCursorY] = useState('50%')
-  const style = { '--edge-y': cursorY } as CSSProperties
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
 
   return (
     <button
+      ref={triggerRef}
       type="button"
       className={`edge-trigger ${side === 'right' ? 'edge-trigger-r' : 'edge-trigger-l'}`}
-      style={style}
       onClick={onShow}
       onMouseMove={(event) => {
         const rect = event.currentTarget.getBoundingClientRect()
-        setCursorY(`${event.clientY - rect.top}px`)
+        triggerRef.current?.style.setProperty('--edge-y', `${event.clientY - rect.top}px`)
       }}
       title="패널 열기"
       aria-label="패널 열기"
@@ -717,28 +716,28 @@ function App() {
   }, [])
 
   useEffect(() => {
-    function isPlayerDragEvent(event: globalThis.DragEvent) {
+    function isAppTextDragEvent(event: globalThis.DragEvent) {
       const target = event.target
       if (!(target instanceof Element)) return false
-      return Boolean(target.closest('.player-area')) && !target.closest('.panel')
+      return Boolean(target.closest('.app')) && hasTextDrop(event.dataTransfer)
     }
 
     function handleWindowDragEnter(event: globalThis.DragEvent) {
-      if (!isPlayerDragEvent(event)) return
+      if (!isAppTextDragEvent(event)) return
       event.stopPropagation()
       dragCountRef.current += 1
       setIsDragging(true)
     }
 
     function handleWindowDragOver(event: globalThis.DragEvent) {
-      if (!isPlayerDragEvent(event)) return
+      if (!isAppTextDragEvent(event)) return
       event.preventDefault()
       event.stopPropagation()
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
     }
 
     function handleWindowDrop(event: globalThis.DragEvent) {
-      if (!isPlayerDragEvent(event)) return
+      if (!isAppTextDragEvent(event)) return
       event.preventDefault()
       event.stopPropagation()
       dragCountRef.current = 0
@@ -915,7 +914,7 @@ function App() {
 
   return (
     <main
-      className="app"
+      className={`app ${isDragging ? 'app-dragging' : ''}`}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={(event) => {

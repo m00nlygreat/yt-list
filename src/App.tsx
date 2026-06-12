@@ -304,7 +304,7 @@ function PlaylistPanel({
   onSelectItem: (itemId: string) => void
   onDeleteItem: (itemId: string) => void
   onRenameItem: (itemId: string, title: string) => void
-  onReorderItem: (fromItemId: string, toItemId: string, position: 'before' | 'after') => void
+  onReorderItem: (fromItemId: string, insertIndex: number) => void
   onSetPlayMode: (mode: PlayMode) => void
   onToggleSide: () => void
   onHide: () => void
@@ -319,8 +319,7 @@ function PlaylistPanel({
   const [urlValue, setUrlValue] = useState('')
   const [reorderState, setReorderState] = useState<{
     fromId: string
-    toId: string
-    position: 'before' | 'after'
+    insertIndex: number
   } | null>(null)
   const [contextMenu, setContextMenu] = useState<{
     itemId: string
@@ -478,7 +477,7 @@ function PlaylistPanel({
         suppressSelectUntilRef.current = Date.now() + 350
       }
       if (currentPointer.active && currentTarget && currentTarget.fromId === currentPointer.fromId) {
-        onReorderItem(currentPointer.fromId, currentTarget.toId, currentTarget.position)
+        onReorderItem(currentPointer.fromId, currentTarget.insertIndex)
       }
       if (source.hasPointerCapture(currentPointer.pointerId)) source.releasePointerCapture(currentPointer.pointerId)
       clearReorder()
@@ -511,14 +510,15 @@ function PlaylistPanel({
         return
       }
 
+      const targetIndex = activePlaylist.items.findIndex((item) => item.id === toId)
+      if (targetIndex < 0) return
+
       const rect = target.getBoundingClientRect()
-      const position: 'before' | 'after' = nativeEvent.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
-      const nextState = { fromId: currentPointer.fromId, toId, position }
+      const insertIndex = nativeEvent.clientY < rect.top + rect.height / 2 ? targetIndex : targetIndex + 1
+      const nextState = { fromId: currentPointer.fromId, insertIndex }
       reorderStateRef.current = nextState
       setReorderState((current) =>
-        current?.fromId === nextState.fromId &&
-        current.toId === nextState.toId &&
-        current.position === nextState.position
+        current?.fromId === nextState.fromId && current.insertIndex === nextState.insertIndex
           ? current
           : nextState,
       )
@@ -752,16 +752,20 @@ function PlaylistPanel({
             ) : null}
           </div>
         ) : (
-          activePlaylist.items.map((video) => (
+          activePlaylist.items.map((video, index) => (
             <VideoItem
               key={video.id}
               video={video}
               isActive={video.id === activeItemId}
               isPlaying={video.id === activeItemId && isPlaying}
               dropPosition={
-                reorderState?.toId === video.id && reorderState.fromId !== video.id
-                  ? reorderState.position
-                  : null
+                reorderState?.insertIndex === index && reorderState.fromId !== video.id
+                  ? 'before'
+                  : reorderState?.insertIndex === activePlaylist.items.length &&
+                      index === activePlaylist.items.length - 1 &&
+                      reorderState.fromId !== video.id
+                    ? 'after'
+                    : null
               }
               onSelect={selectItemUnlessReordering}
               onDelete={onDeleteItem}
@@ -1188,20 +1192,19 @@ function App() {
     }))
   }
 
-  function reorderItem(fromItemId: string, toItemId: string, position: 'before' | 'after') {
-    if (fromItemId === toItemId) return
-
+  function reorderItem(fromItemId: string, insertIndex: number) {
     updateActivePlaylist((playlist) => {
       const fromIndex = playlist.items.findIndex((item) => item.id === fromItemId)
-      const toIndex = playlist.items.findIndex((item) => item.id === toItemId)
-      if (fromIndex < 0 || toIndex < 0) return playlist
+      if (fromIndex < 0) return playlist
+
+      const clampedInsertIndex = Math.max(0, Math.min(playlist.items.length, insertIndex))
+      if (clampedInsertIndex === fromIndex || clampedInsertIndex === fromIndex + 1) return playlist
 
       const items = [...playlist.items]
       const [movingItem] = items.splice(fromIndex, 1)
-      const adjustedToIndex = items.findIndex((item) => item.id === toItemId)
-      const insertIndex = position === 'before' ? adjustedToIndex : adjustedToIndex + 1
+      const adjustedInsertIndex = clampedInsertIndex > fromIndex ? clampedInsertIndex - 1 : clampedInsertIndex
 
-      items.splice(insertIndex, 0, movingItem)
+      items.splice(adjustedInsertIndex, 0, movingItem)
 
       return {
         ...playlist,

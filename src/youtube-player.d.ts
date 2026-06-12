@@ -29,8 +29,8 @@ declare global {
 
   interface YTPlayer {
     destroy: () => void
-    loadVideoById: (videoId: string | { videoId: string; startSeconds?: number }) => void
-    cueVideoById: (videoId: string | { videoId: string; startSeconds?: number }) => void
+    loadVideoById: (videoId: string, startSeconds?: number) => void
+    cueVideoById: (videoId: string, startSeconds?: number) => void
     playVideo: () => void
     stopVideo?: () => void
     seekTo?: (seconds: number) => void

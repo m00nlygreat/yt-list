@@ -109,14 +109,23 @@ function hasTextDrop(dataTransfer: DataTransfer | null): boolean {
 }
 
 function playbackStartSeconds(item: PlaylistItem): number | undefined {
+  if (item.completed) return undefined
   if (typeof item.currentTime !== 'number' || !Number.isFinite(item.currentTime)) return undefined
+  if (typeof item.duration === 'number' && item.duration > 0 && item.currentTime >= item.duration - 2) {
+    return undefined
+  }
   const seconds = Math.max(0, Math.floor(item.currentTime))
   return seconds > 0 ? seconds : undefined
 }
 
-function playerVideoPayload(item: PlaylistItem): string | { videoId: string; startSeconds?: number } {
+function loadPlayerVideo(player: YTPlayer, item: PlaylistItem): void {
   const startSeconds = playbackStartSeconds(item)
-  return startSeconds === undefined ? item.videoId : { videoId: item.videoId, startSeconds }
+  player.loadVideoById(item.videoId, startSeconds)
+}
+
+function cuePlayerVideo(player: YTPlayer, item: PlaylistItem): void {
+  const startSeconds = playbackStartSeconds(item)
+  player.cueVideoById(item.videoId, startSeconds)
 }
 
 function progressRatio(item: PlaylistItem): number | null {
@@ -1025,6 +1034,9 @@ function App() {
           rel: 0,
         },
         events: {
+          onReady: () => {
+            setPlayerReady(true)
+          },
           onStateChange: (event) => {
             setIsPlaying(event.data === window.YT?.PlayerState.PLAYING)
             if (
@@ -1040,7 +1052,6 @@ function App() {
           },
         },
       })
-      setPlayerReady(true)
     })
 
     return () => {
@@ -1069,7 +1080,7 @@ function App() {
       return
     }
 
-    if (!playerRef.current) return
+    if (!playerReady || !playerRef.current) return
     const current = stateRef.current
     const playlist =
       current.playlists.find((candidate) => candidate.id === current.settings.activePlaylistId) ??
@@ -1079,11 +1090,11 @@ function App() {
 
     if (shouldPlayRef.current) {
       shouldPlayRef.current = false
-      playerRef.current.loadVideoById(playerVideoPayload(item))
+      loadPlayerVideo(playerRef.current, item)
       return
     }
 
-    playerRef.current.cueVideoById(playerVideoPayload(item))
+    cuePlayerVideo(playerRef.current, item)
   }, [activeItemId, playerReady])
 
   const addVideosFromText = useCallback((text: string) => {
@@ -1303,7 +1314,7 @@ function App() {
     const selectedItem = activePlaylist.items.find((item) => item.id === itemId)
     if (itemId === stateRef.current.settings.activeItemId && selectedItem) {
       shouldPlayRef.current = false
-      playerRef.current?.loadVideoById(playerVideoPayload(selectedItem))
+      if (playerRef.current) loadPlayerVideo(playerRef.current, selectedItem)
       playerRef.current?.playVideo()
       return
     }

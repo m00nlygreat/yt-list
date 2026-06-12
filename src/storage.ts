@@ -6,7 +6,7 @@ function createId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID()}`
 }
 
-export function createPlaylist(name = 'My Playlist'): Playlist {
+export function createPlaylist(name = '기본'): Playlist {
   const now = Date.now()
 
   return {
@@ -20,6 +20,8 @@ export function createPlaylist(name = 'My Playlist'): Playlist {
 
 export function createInitialState(): AppState {
   const playlist = createPlaylist()
+  const fallbackWidth =
+    typeof window === 'undefined' ? 260 : Math.max(180, Math.round(window.innerWidth * 0.16))
 
   return {
     playlists: [playlist],
@@ -28,6 +30,7 @@ export function createInitialState(): AppState {
       activeItemId: null,
       panelSide: 'right',
       panelHidden: false,
+      panelWidth: fallbackWidth,
       playMode: 'sequence',
     },
   }
@@ -48,17 +51,24 @@ export function loadState(): AppState {
       return fallback
     }
 
-    const activePlaylist = parsed.playlists.find(
+    const playlists = parsed.playlists.map((playlist) =>
+      playlist.name === 'My Playlist' && playlist.items.length === 0 ? { ...playlist, name: '기본' } : playlist,
+    )
+    const activePlaylist = playlists.find(
       (playlist) => playlist.id === parsed.settings?.activePlaylistId,
     )
 
     return {
-      playlists: parsed.playlists,
+      playlists,
       settings: {
-        activePlaylistId: activePlaylist?.id ?? parsed.playlists[0].id,
+        activePlaylistId: activePlaylist?.id ?? playlists[0].id,
         activeItemId: parsed.settings?.activeItemId ?? null,
         panelSide: parsed.settings?.panelSide === 'left' ? 'left' : 'right',
         panelHidden: Boolean(parsed.settings?.panelHidden),
+        panelWidth:
+          typeof parsed.settings?.panelWidth === 'number'
+            ? Math.max(52, parsed.settings.panelWidth)
+            : fallback.settings.panelWidth,
         playMode: parsed.settings?.playMode ?? 'sequence',
       },
     }

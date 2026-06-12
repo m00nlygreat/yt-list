@@ -1,30 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent } from 'react'
-import {
-  EyeOff,
-  GripVertical,
-  ListMusic,
-  PanelLeft,
-  PanelRight,
-  Pencil,
-  Plus,
-  Repeat1,
-  Save,
-  Shuffle,
-  SkipForward,
-  Trash2,
-} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { DragEvent, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 import './App.css'
-import { createInitialState, createPlaylist, loadState, makeId, saveState } from './storage'
+import { createPlaylist, loadState, makeId, saveState } from './storage'
 import type { AppState, PanelSide, PlayMode, Playlist, PlaylistItem } from './types'
 import { extractVideoIds, thumbnailUrl, videoUrl } from './youtube'
 
 let youtubeApiPromise: Promise<void> | null = null
 
 function loadYouTubeApi(): Promise<void> {
-  if (window.YT?.Player) {
-    return Promise.resolve()
-  }
+  if (window.YT?.Player) return Promise.resolve()
 
   if (!youtubeApiPromise) {
     youtubeApiPromise = new Promise((resolve) => {
@@ -45,96 +29,202 @@ function loadYouTubeApi(): Promise<void> {
   return youtubeApiPromise
 }
 
-function labelForMode(mode: PlayMode): string {
-  if (mode === 'shuffle') return 'Shuffle'
-  if (mode === 'repeat-one') return 'Repeat one'
-  return 'Sequence'
+function SeqIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor" aria-hidden="true">
+      <rect x="1" y="1.5" width="11" height="1.8" rx="0.9" />
+      <rect x="1" y="5.5" width="11" height="1.8" rx="0.9" />
+      <rect x="1" y="9.5" width="11" height="1.8" rx="0.9" />
+    </svg>
+  )
 }
 
-function nextMode(mode: PlayMode): PlayMode {
-  if (mode === 'sequence') return 'shuffle'
-  if (mode === 'shuffle') return 'repeat-one'
-  return 'sequence'
+function ShuffleIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M2 4h2l6 6h2" />
+      <path d="M12 4h-2L9 5" />
+      <path d="M10 3l2 1-2 1" />
+      <path d="M2 10l2-2" />
+      <path d="M10 9l2 1-2 1" />
+    </svg>
+  )
 }
 
-function Player({
-  videoId,
-  onEnded,
-}: {
-  videoId: string | null
-  onEnded: (player: YTPlayer) => void
-}) {
-  const hostRef = useRef<HTMLDivElement | null>(null)
-  const playerRef = useRef<YTPlayer | null>(null)
-  const latestEndedRef = useRef(onEnded)
-  const initialVideoIdRef = useRef(videoId)
+function RepeatIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d="M2 7A5 5 0 1 0 7 2" />
+      <path d="M7 2L5 4l2 2" />
+      <text x="7" y="10" textAnchor="middle" fontSize="4.5" fontWeight="700" fill="currentColor" stroke="none">
+        1
+      </text>
+    </svg>
+  )
+}
 
-  useEffect(() => {
-    latestEndedRef.current = onEnded
-  }, [onEnded])
+function EdgeTrigger({ side, onShow }: { side: PanelSide; onShow: () => void }) {
+  return (
+    <button
+      type="button"
+      className={`edge-trigger ${side === 'right' ? 'edge-trigger-r' : 'edge-trigger-l'}`}
+      onClick={onShow}
+      title="패널 열기"
+      aria-label="패널 열기"
+    />
+  )
+}
 
-  useEffect(() => {
-    let cancelled = false
+function UrlInputForm({ onSubmit }: { onSubmit: (text: string) => void }) {
+  const [value, setValue] = useState('')
 
-    loadYouTubeApi().then(() => {
-      if (cancelled || !hostRef.current || !window.YT?.Player || playerRef.current) {
-        return
-      }
-
-      playerRef.current = new window.YT.Player(hostRef.current, {
-        videoId: initialVideoIdRef.current ?? undefined,
-        width: '100%',
-        height: '100%',
-        playerVars: {
-          autoplay: initialVideoIdRef.current ? 1 : 0,
-          controls: 1,
-          modestbranding: 1,
-          rel: 0,
-        },
-        events: {
-          onStateChange: (event) => {
-            if (event.data === window.YT?.PlayerState.ENDED) {
-              latestEndedRef.current(event.target)
-            }
-          },
-        },
-      })
-    })
-
-    return () => {
-      cancelled = true
-      playerRef.current?.destroy()
-      playerRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!videoId || !playerRef.current) {
-      return
-    }
-
-    playerRef.current.loadVideoById(videoId)
-  }, [videoId])
-
-  if (!videoId) {
-    return (
-      <div className="empty-player">
-        <ListMusic size={42} strokeWidth={1.6} />
-        <h1>Drop YouTube links to start</h1>
-        <p>Videos added here stay on this device and play from the selected playlist.</p>
-      </div>
-    )
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!value.trim()) return
+    onSubmit(value.trim())
+    setValue('')
   }
 
-  return <div className="player-host" ref={hostRef} />
+  return (
+    <form className="url-form" onSubmit={handleSubmit}>
+      <input
+        className="url-input"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder="https://youtube.com/watch?v=..."
+      />
+      <button type="submit" className="url-submit">
+        추가
+      </button>
+    </form>
+  )
+}
+
+function VideoItem({
+  video,
+  isActive,
+  isPlaying,
+  iconOnly,
+  onSelect,
+  onDelete,
+  onRename,
+}: {
+  video: PlaylistItem
+  isActive: boolean
+  isPlaying: boolean
+  iconOnly: boolean
+  onSelect: (itemId: string) => void
+  onDelete: (itemId: string) => void
+  onRename: (itemId: string, title: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+  const inputRef = useRef<HTMLInputElement | null>(null)
+
+  function startEdit(event: ReactMouseEvent<HTMLSpanElement>) {
+    event.stopPropagation()
+    setEditValue(video.title)
+    setEditing(true)
+    window.setTimeout(() => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }, 10)
+  }
+
+  function commitEdit() {
+    setEditing(false)
+    const title = editValue.trim()
+    if (title && title !== video.title) onRename(video.id, title)
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') commitEdit()
+    if (event.key === 'Escape') setEditing(false)
+  }
+
+  return (
+    <div
+      className={['vi', isActive ? 'vi-active' : '', iconOnly ? 'vi-icon-mode' : '']
+        .filter(Boolean)
+        .join(' ')}
+      onClick={() => onSelect(video.id)}
+      title={iconOnly ? video.title : undefined}
+    >
+      <div className={['vi-thumb', iconOnly ? 'vi-thumb-sq' : ''].filter(Boolean).join(' ')}>
+        <img src={thumbnailUrl(video.videoId)} alt="" loading="lazy" draggable="false" />
+        {isActive && isPlaying ? (
+          <div className="vi-bars">
+            <span />
+            <span />
+            <span />
+          </div>
+        ) : null}
+        {isActive && !isPlaying ? <div className="vi-paused">▶</div> : null}
+      </div>
+
+      {!iconOnly ? (
+        <>
+          <div className="vi-meta">
+            {editing ? (
+              <input
+                ref={inputRef}
+                className="vi-input"
+                value={editValue}
+                onChange={(event) => setEditValue(event.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={handleKeyDown}
+                onClick={(event) => event.stopPropagation()}
+              />
+            ) : (
+              <span className="vi-title" onDoubleClick={startEdit}>
+                {video.title}
+              </span>
+            )}
+          </div>
+          <button
+            className="vi-del"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onDelete(video.id)
+            }}
+            title="삭제"
+          >
+            ×
+          </button>
+        </>
+      ) : null}
+    </div>
+  )
 }
 
 function PlaylistPanel({
   playlists,
   activePlaylist,
   activeItemId,
+  isPlaying,
   playMode,
   panelSide,
+  panelWidth,
   onAddPlaylist,
   onDeletePlaylist,
   onRenamePlaylist,
@@ -142,116 +232,263 @@ function PlaylistPanel({
   onSelectItem,
   onDeleteItem,
   onRenameItem,
-  onToggleMode,
+  onSetPlayMode,
   onToggleSide,
   onHide,
+  onResize,
+  onAddVideos,
 }: {
   playlists: Playlist[]
   activePlaylist: Playlist
   activeItemId: string | null
+  isPlaying: boolean
   playMode: PlayMode
   panelSide: PanelSide
+  panelWidth: number
   onAddPlaylist: () => void
-  onDeletePlaylist: () => void
-  onRenamePlaylist: () => void
+  onDeletePlaylist: (playlistId: string) => void
+  onRenamePlaylist: (playlistId: string, name: string) => void
   onSelectPlaylist: (playlistId: string) => void
   onSelectItem: (itemId: string) => void
   onDeleteItem: (itemId: string) => void
   onRenameItem: (itemId: string, title: string) => void
-  onToggleMode: () => void
+  onSetPlayMode: (mode: PlayMode) => void
   onToggleSide: () => void
   onHide: () => void
+  onResize: (width: number) => void
+  onAddVideos: (text: string) => void
 }) {
+  const iconOnly = panelWidth < 128
+  const [showMenu, setShowMenu] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [showUrlInput, setShowUrlInput] = useState(false)
+  const [urlValue, setUrlValue] = useState('')
+  const draggingRef = useRef(false)
+  const startXRef = useRef(0)
+  const startWidthRef = useRef(0)
+
+  useEffect(() => {
+    if (!showMenu) return
+    const close = () => setShowMenu(false)
+    document.addEventListener('click', close, { once: true })
+    return () => document.removeEventListener('click', close)
+  }, [showMenu])
+
+  useEffect(() => {
+    function handleMove(event: MouseEvent) {
+      if (!draggingRef.current) return
+      const delta = panelSide === 'right' ? startXRef.current - event.clientX : event.clientX - startXRef.current
+      const width = Math.max(52, Math.min(window.innerWidth * 0.55, startWidthRef.current + delta))
+      onResize(Math.round(width))
+    }
+
+    function handleUp() {
+      draggingRef.current = false
+    }
+
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [onResize, panelSide])
+
+  function beginResize(event: ReactMouseEvent<HTMLDivElement>) {
+    draggingRef.current = true
+    startXRef.current = event.clientX
+    startWidthRef.current = panelWidth
+    event.preventDefault()
+  }
+
+  function handleDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    const text = event.dataTransfer.getData('text/plain') || event.dataTransfer.getData('text/uri-list')
+    if (text) onAddVideos(text)
+  }
+
+  function submitUrl(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!urlValue.trim()) return
+    onAddVideos(urlValue.trim())
+    setUrlValue('')
+    setShowUrlInput(false)
+  }
+
+  function commitPlaylistRename(playlistId: string) {
+    const name = renameValue.trim()
+    if (name) onRenamePlaylist(playlistId, name)
+    setRenamingId(null)
+  }
+
   return (
-    <aside className="playlist-panel">
-      <div className="panel-top">
-        <div className="select-row">
-          <select
-            aria-label="Playlist"
-            value={activePlaylist.id}
-            onChange={(event) => onSelectPlaylist(event.target.value)}
-          >
-            {playlists.map((playlist) => (
-              <option key={playlist.id} value={playlist.id}>
-                {playlist.name}
-              </option>
+    <aside
+      className={`panel ${panelSide === 'right' ? 'panel-r' : 'panel-l'}`}
+      style={{ width: `${panelWidth}px` }}
+      onDragOver={(event) => {
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+      }}
+      onDrop={handleDrop}
+    >
+      <div className={`rh ${panelSide === 'right' ? 'rh-l' : 'rh-r'}`} onMouseDown={beginResize} />
+
+      <div className="panel-hdr">
+        <div className="panel-hdr-top">
+          {!iconOnly ? (
+            <>
+              <div className="pl-selector" onClick={(event) => event.stopPropagation()}>
+                <button className="pl-btn" type="button" onClick={() => setShowMenu((value) => !value)}>
+                  <span className="pl-name">{activePlaylist.name}</span>
+                  <span className="pl-arrow">▼</span>
+                </button>
+
+                {showMenu ? (
+                  <div className="pl-menu">
+                    {playlists.map((playlist) => (
+                      <div
+                        key={playlist.id}
+                        className={`pl-menu-item ${playlist.id === activePlaylist.id ? 'cur' : ''}`}
+                        onClick={() => {
+                          onSelectPlaylist(playlist.id)
+                          setShowMenu(false)
+                        }}
+                      >
+                        {renamingId === playlist.id ? (
+                          <input
+                            className="pl-rename-input"
+                            value={renameValue}
+                            onChange={(event) => setRenameValue(event.target.value)}
+                            onBlur={() => commitPlaylistRename(playlist.id)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') commitPlaylistRename(playlist.id)
+                              if (event.key === 'Escape') setRenamingId(null)
+                            }}
+                            onClick={(event) => event.stopPropagation()}
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className="pl-menu-item-name"
+                            onDoubleClick={(event) => {
+                              event.stopPropagation()
+                              setRenamingId(playlist.id)
+                              setRenameValue(playlist.name)
+                            }}
+                          >
+                            {playlist.name}
+                          </span>
+                        )}
+
+                        {playlists.length > 1 ? (
+                          <button
+                            className="pl-del-btn"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              onDeletePlaylist(playlist.id)
+                              setShowMenu(false)
+                            }}
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+
+                    <button
+                      className="pl-add-btn"
+                      type="button"
+                      onClick={() => {
+                        onAddPlaylist()
+                        setShowMenu(false)
+                      }}
+                    >
+                      + 새 플레이리스트
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <button className="icon-btn add-icon" type="button" onClick={() => setShowUrlInput((value) => !value)} title="URL 추가">
+                +
+              </button>
+              <button className="icon-btn side-icon" type="button" onClick={onToggleSide} title={panelSide === 'right' ? '왼쪽으로' : '오른쪽으로'}>
+                {panelSide === 'right' ? '⇦' : '⇨'}
+              </button>
+            </>
+          ) : null}
+
+          <button className="icon-btn close-icon" type="button" onClick={onHide} title="패널 닫기">
+            ×
+          </button>
+        </div>
+
+        {!iconOnly ? (
+          <div className="panel-hdr-modes">
+            {[
+              { mode: 'sequence' as const, Icon: SeqIcon, title: '순서대로' },
+              { mode: 'shuffle' as const, Icon: ShuffleIcon, title: '셔플' },
+              { mode: 'repeat-one' as const, Icon: RepeatIcon, title: '한 곡 반복' },
+            ].map(({ mode, Icon, title }) => (
+              <button
+                key={mode}
+                className={`mode-btn ${playMode === mode ? 'active' : ''}`}
+                type="button"
+                onClick={() => onSetPlayMode(mode)}
+                title={title}
+              >
+                <Icon />
+              </button>
             ))}
-          </select>
-          <button type="button" className="icon-button" onClick={onAddPlaylist} title="New playlist">
-            <Plus size={18} />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={onRenamePlaylist}
-            title="Rename playlist"
-          >
-            <Pencil size={17} />
-          </button>
-          <button
-            type="button"
-            className="icon-button danger"
-            onClick={onDeletePlaylist}
-            title="Delete playlist"
-            disabled={playlists.length === 1}
-          >
-            <Trash2 size={17} />
-          </button>
-        </div>
-
-        <div className="toolbar">
-          <button type="button" onClick={onToggleMode} title="Change play mode">
-            {playMode === 'shuffle' ? <Shuffle size={17} /> : null}
-            {playMode === 'repeat-one' ? <Repeat1 size={17} /> : null}
-            {playMode === 'sequence' ? <SkipForward size={17} /> : null}
-            <span>{labelForMode(playMode)}</span>
-          </button>
-          <button type="button" onClick={onToggleSide} title="Move panel">
-            {panelSide === 'left' ? <PanelRight size={17} /> : <PanelLeft size={17} />}
-          </button>
-          <button type="button" onClick={onHide} title="Hide panel">
-            <EyeOff size={17} />
-          </button>
-        </div>
+            <div className="panel-mode-spacer" />
+            <span className="panel-count">{activePlaylist.items.length}개</span>
+          </div>
+        ) : null}
       </div>
 
-      <div className="drop-note">
-        <GripVertical size={16} />
-        <span>Drop YouTube URLs anywhere</span>
-      </div>
+      {showUrlInput && !iconOnly ? (
+        <form className="panel-url-row" onSubmit={submitUrl}>
+          <input
+            className="panel-url-input"
+            value={urlValue}
+            onChange={(event) => setUrlValue(event.target.value)}
+            placeholder="YouTube URL 또는 영상 ID..."
+            autoFocus
+          />
+          <button type="submit" className="panel-url-btn">
+            추가
+          </button>
+        </form>
+      ) : null}
 
-      <div className="items" aria-label="Playlist videos">
+      <div className="panel-body">
         {activePlaylist.items.length === 0 ? (
-          <div className="empty-list">No videos in this playlist.</div>
+          <div className="panel-empty">
+            {!iconOnly ? (
+              <>
+                <div className="panel-empty-arrow">↓</div>
+                <div>
+                  URL을 드롭하거나
+                  <br />+ 버튼으로 추가하세요
+                </div>
+              </>
+            ) : null}
+          </div>
         ) : (
-          activePlaylist.items.map((item, index) => (
-            <div
-              className={`playlist-item ${item.id === activeItemId ? 'active' : ''}`}
-              key={item.id}
-            >
-              <button
-                type="button"
-                className="thumb-button"
-                onClick={() => onSelectItem(item.id)}
-                title={`Play ${item.title}`}
-              >
-                <img src={thumbnailUrl(item.videoId)} alt="" loading="lazy" />
-                <span>{index + 1}</span>
-              </button>
-              <input
-                aria-label="Video title"
-                value={item.title}
-                onChange={(event) => onRenameItem(item.id, event.target.value)}
-              />
-              <button
-                type="button"
-                className="icon-button danger"
-                onClick={() => onDeleteItem(item.id)}
-                title="Remove video"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
+          activePlaylist.items.map((video) => (
+            <VideoItem
+              key={video.id}
+              video={video}
+              isActive={video.id === activeItemId}
+              isPlaying={video.id === activeItemId && isPlaying}
+              onSelect={onSelectItem}
+              onDelete={onDeleteItem}
+              onRename={onRenameItem}
+              iconOnly={iconOnly}
+            />
           ))
         )}
       </div>
@@ -259,9 +496,29 @@ function PlaylistPanel({
   )
 }
 
+async function fetchVideoTitle(videoId: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl(videoId))}&format=json`,
+    )
+    if (!response.ok) return null
+    const data = (await response.json()) as { title?: string }
+    return data.title ?? null
+  } catch {
+    return null
+  }
+}
+
 function App() {
   const [state, setState] = useState<AppState>(() => loadState())
   const [isDragging, setIsDragging] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [playerReady, setPlayerReady] = useState(false)
+  const playerHostRef = useRef<HTMLDivElement | null>(null)
+  const playerRef = useRef<YTPlayer | null>(null)
+  const stateRef = useRef(state)
+  const shouldPlayRef = useRef(false)
+  const dragCountRef = useRef(0)
 
   const activePlaylist = useMemo(() => {
     return (
@@ -275,8 +532,155 @@ function App() {
   }, [activePlaylist.items, state.settings.activeItemId])
 
   useEffect(() => {
+    stateRef.current = state
     saveState(state)
   }, [state])
+
+  const selectNextVideo = useCallback(
+    (player?: YTPlayer) => {
+      const current = stateRef.current
+      const playlist =
+        current.playlists.find((candidate) => candidate.id === current.settings.activePlaylistId) ??
+        current.playlists[0]
+      if (!playlist || playlist.items.length === 0) return
+
+      const currentIndex = playlist.items.findIndex((item) => item.id === current.settings.activeItemId)
+
+      if (current.settings.playMode === 'repeat-one') {
+        player?.seekTo?.(0)
+        player?.playVideo()
+        return
+      }
+
+      let nextItem = playlist.items[(currentIndex + 1) % playlist.items.length]
+      if (current.settings.playMode === 'shuffle' && playlist.items.length > 1) {
+        const candidates = playlist.items.filter((_, index) => index !== currentIndex)
+        nextItem = candidates[Math.floor(Math.random() * candidates.length)]
+      }
+
+      shouldPlayRef.current = true
+      setState((previous) => ({
+        ...previous,
+        settings: { ...previous.settings, activeItemId: nextItem.id },
+      }))
+    },
+    [],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+
+    loadYouTubeApi().then(() => {
+      if (cancelled || !playerHostRef.current || !window.YT?.Player || playerRef.current) return
+
+      playerRef.current = new window.YT.Player(playerHostRef.current, {
+        videoId: '',
+        width: '100%',
+        height: '100%',
+        playerVars: {
+          autoplay: 0,
+          controls: 1,
+          iv_load_policy: 3,
+          modestbranding: 1,
+          playsinline: 1,
+          rel: 0,
+        },
+        events: {
+          onStateChange: (event) => {
+            setIsPlaying(event.data === window.YT?.PlayerState.PLAYING)
+            if (event.data === window.YT?.PlayerState.ENDED) selectNextVideo(event.target)
+          },
+        },
+      })
+      setPlayerReady(true)
+    })
+
+    return () => {
+      cancelled = true
+      playerRef.current?.destroy()
+      playerRef.current = null
+      setPlayerReady(false)
+    }
+  }, [selectNextVideo])
+
+  useEffect(() => {
+    if (!activeItem) {
+      playerRef.current?.stopVideo?.()
+      return
+    }
+
+    if (!playerRef.current) return
+
+    if (shouldPlayRef.current) {
+      shouldPlayRef.current = false
+      playerRef.current.loadVideoById(activeItem.videoId)
+      return
+    }
+
+    playerRef.current.cueVideoById(activeItem.videoId)
+  }, [activeItem])
+
+  const addVideosFromText = useCallback((text: string) => {
+    const ids = extractVideoIds(text)
+    if (ids.length === 0) return
+
+    const current = stateRef.current
+    const activePlaylistId = current.settings.activePlaylistId
+    const existingIds = new Set(
+      current.playlists
+        .find((playlist) => playlist.id === activePlaylistId)
+        ?.items.map((item) => item.videoId) ?? [],
+    )
+    const newIds = ids.filter((videoId) => !existingIds.has(videoId))
+    if (newIds.length === 0) return
+
+    const newItems: PlaylistItem[] = newIds.map((videoId) => ({
+      id: makeId('item'),
+      videoId,
+      title: videoId,
+      url: videoUrl(videoId),
+      addedAt: Date.now(),
+    }))
+
+    setState((previous) => {
+      const playlist = previous.playlists.find((candidate) => candidate.id === previous.settings.activePlaylistId)
+      const shouldSelectFirst = !playlist || (playlist.items.length === 0 && !previous.settings.activeItemId)
+      if (shouldSelectFirst) shouldPlayRef.current = true
+
+      return {
+        ...previous,
+        playlists: previous.playlists.map((candidate) =>
+          candidate.id === previous.settings.activePlaylistId
+            ? { ...candidate, items: [...candidate.items, ...newItems], updatedAt: Date.now() }
+            : candidate,
+        ),
+        settings: {
+          ...previous.settings,
+          activeItemId: shouldSelectFirst ? newItems[0].id : previous.settings.activeItemId,
+        },
+      }
+    })
+
+    for (const item of newItems) {
+      fetchVideoTitle(item.videoId).then((title) => {
+        if (!title) return
+        setState((previous) => ({
+          ...previous,
+          playlists: previous.playlists.map((playlist) =>
+            playlist.id === activePlaylistId
+              ? {
+                  ...playlist,
+                  items: playlist.items.map((candidate) =>
+                    candidate.id === item.id ? { ...candidate, title } : candidate,
+                  ),
+                  updatedAt: Date.now(),
+                }
+              : playlist,
+          ),
+        }))
+      })
+    }
+  }, [])
 
   function updateActivePlaylist(updater: (playlist: Playlist) => Playlist) {
     setState((current) => ({
@@ -287,147 +691,58 @@ function App() {
     }))
   }
 
-  function addVideosFromText(text: string) {
-    const videoIds = extractVideoIds(text)
-
-    if (videoIds.length === 0) {
-      return
-    }
-
-    const newItems: PlaylistItem[] = videoIds.map((videoId) => ({
-      id: makeId('item'),
-      videoId,
-      title: `YouTube video ${videoId}`,
-      url: videoUrl(videoId),
-      addedAt: Date.now(),
-    }))
-
-    setState((current) => {
-      let firstNewItemId: string | null = null
-      const playlists = current.playlists.map((playlist) => {
-        if (playlist.id !== current.settings.activePlaylistId) {
-          return playlist
-        }
-
-        firstNewItemId = newItems[0]?.id ?? null
-
-        return {
-          ...playlist,
-          items: [...playlist.items, ...newItems],
-          updatedAt: Date.now(),
-        }
-      })
-
-      return {
-        playlists,
-        settings: {
-          ...current.settings,
-          activeItemId: current.settings.activeItemId ?? firstNewItemId,
-        },
-      }
-    })
-  }
-
-  function handleDrop(event: DragEvent<HTMLElement>) {
-    event.preventDefault()
-    setIsDragging(false)
-    const text =
-      event.dataTransfer.getData('text/uri-list') ||
-      event.dataTransfer.getData('text/plain') ||
-      ''
-
-    addVideosFromText(text)
-  }
-
-  function selectNextVideo(player?: YTPlayer) {
-    if (!activeItem || activePlaylist.items.length === 0) {
-      return
-    }
-
-    if (state.settings.playMode === 'repeat-one') {
-      if (activeItem) {
-        player?.loadVideoById(activeItem.videoId)
-      }
-      return
-    }
-
-    const currentIndex = activePlaylist.items.findIndex((item) => item.id === activeItem.id)
-    let nextItem = activePlaylist.items[(currentIndex + 1) % activePlaylist.items.length]
-
-    if (state.settings.playMode === 'shuffle' && activePlaylist.items.length > 1) {
-      const candidates = activePlaylist.items.filter((item) => item.id !== activeItem.id)
-      nextItem = candidates[Math.floor(Math.random() * candidates.length)]
-    }
-
+  function addPlaylist() {
+    const playlist = createPlaylist(`플레이리스트 ${stateRef.current.playlists.length + 1}`)
     setState((current) => ({
       ...current,
-      settings: {
-        ...current.settings,
-        activeItemId: nextItem.id,
-      },
-    }))
-  }
-
-  function addPlaylist() {
-    const name = window.prompt('Playlist name', `Playlist ${state.playlists.length + 1}`)
-    if (!name?.trim()) return
-
-    const playlist = createPlaylist(name.trim())
-    setState((current) => ({
       playlists: [...current.playlists, playlist],
-      settings: {
-        ...current.settings,
-        activePlaylistId: playlist.id,
-        activeItemId: null,
-      },
+      settings: { ...current.settings, activePlaylistId: playlist.id, activeItemId: null },
     }))
   }
 
-  function renamePlaylist() {
-    const name = window.prompt('Playlist name', activePlaylist.name)
-    if (!name?.trim()) return
-
-    updateActivePlaylist((playlist) => ({
-      ...playlist,
-      name: name.trim(),
-      updatedAt: Date.now(),
+  function renamePlaylist(playlistId: string, name: string) {
+    setState((current) => ({
+      ...current,
+      playlists: current.playlists.map((playlist) =>
+        playlist.id === playlistId ? { ...playlist, name, updatedAt: Date.now() } : playlist,
+      ),
     }))
   }
 
-  function deletePlaylist() {
-    if (state.playlists.length === 1) return
-
-    const confirmed = window.confirm(`Delete "${activePlaylist.name}"?`)
-    if (!confirmed) return
-
+  function deletePlaylist(playlistId: string) {
     setState((current) => {
-      const playlists = current.playlists.filter(
-        (playlist) => playlist.id !== current.settings.activePlaylistId,
-      )
+      if (current.playlists.length === 1) return current
+      const playlists = current.playlists.filter((playlist) => playlist.id !== playlistId)
       const nextPlaylist = playlists[0]
 
       return {
+        ...current,
         playlists,
-        settings: {
-          ...current.settings,
-          activePlaylistId: nextPlaylist.id,
-          activeItemId: nextPlaylist.items[0]?.id ?? null,
-        },
+        settings:
+          current.settings.activePlaylistId === playlistId
+            ? {
+                ...current.settings,
+                activePlaylistId: nextPlaylist.id,
+                activeItemId: nextPlaylist.items[0]?.id ?? null,
+              }
+            : current.settings,
       }
     })
   }
 
   function selectPlaylist(playlistId: string) {
-    const playlist = state.playlists.find((candidate) => candidate.id === playlistId)
-    if (!playlist) return
-
+    setIsPlaying(false)
     setState((current) => ({
       ...current,
-      settings: {
-        ...current.settings,
-        activePlaylistId: playlist.id,
-        activeItemId: playlist.items[0]?.id ?? null,
-      },
+      settings: { ...current.settings, activePlaylistId: playlistId, activeItemId: null },
+    }))
+  }
+
+  function selectItem(itemId: string) {
+    shouldPlayRef.current = true
+    setState((current) => ({
+      ...current,
+      settings: { ...current.settings, activeItemId: itemId },
     }))
   }
 
@@ -438,14 +753,11 @@ function App() {
       updatedAt: Date.now(),
     }))
 
-    if (itemId === state.settings.activeItemId) {
-      const remaining = activePlaylist.items.filter((item) => item.id !== itemId)
+    if (itemId === stateRef.current.settings.activeItemId) {
+      setIsPlaying(false)
       setState((current) => ({
         ...current,
-        settings: {
-          ...current.settings,
-          activeItemId: remaining[0]?.id ?? null,
-        },
+        settings: { ...current.settings, activeItemId: null },
       }))
     }
   }
@@ -459,107 +771,110 @@ function App() {
   }
 
   function setPanelSide(panelSide: PanelSide) {
-    setState((current) => ({
-      ...current,
-      settings: {
-        ...current.settings,
-        panelSide,
-      },
-    }))
+    setState((current) => ({ ...current, settings: { ...current.settings, panelSide } }))
   }
 
-  function toggleMode() {
-    setState((current) => ({
-      ...current,
-      settings: {
-        ...current.settings,
-        playMode: nextMode(current.settings.playMode),
-      },
-    }))
+  function setPanelWidth(panelWidth: number) {
+    setState((current) => ({ ...current, settings: { ...current.settings, panelWidth } }))
   }
 
-  function resetState() {
-    const confirmed = window.confirm('Reset all playlists and settings on this device?')
-    if (!confirmed) return
-    setState(createInitialState())
+  function handleDragEnter() {
+    dragCountRef.current += 1
+    setIsDragging(true)
   }
 
-  const panel = (
+  function handleDragLeave() {
+    dragCountRef.current -= 1
+    if (dragCountRef.current <= 0) {
+      dragCountRef.current = 0
+      setIsDragging(false)
+    }
+  }
+
+  function handleDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault()
+    dragCountRef.current = 0
+    setIsDragging(false)
+    const text = event.dataTransfer.getData('text/plain') || event.dataTransfer.getData('text/uri-list')
+    if (text) addVideosFromText(text)
+  }
+
+  const panel = !state.settings.panelHidden ? (
     <PlaylistPanel
       playlists={state.playlists}
       activePlaylist={activePlaylist}
       activeItemId={state.settings.activeItemId}
+      isPlaying={isPlaying}
       playMode={state.settings.playMode}
       panelSide={state.settings.panelSide}
+      panelWidth={state.settings.panelWidth}
       onAddPlaylist={addPlaylist}
       onDeletePlaylist={deletePlaylist}
       onRenamePlaylist={renamePlaylist}
       onSelectPlaylist={selectPlaylist}
-      onSelectItem={(itemId) =>
-        setState((current) => ({
-          ...current,
-          settings: { ...current.settings, activeItemId: itemId },
-        }))
-      }
+      onSelectItem={selectItem}
       onDeleteItem={deleteItem}
       onRenameItem={renameItem}
-      onToggleMode={toggleMode}
+      onSetPlayMode={(playMode) => setState((current) => ({ ...current, settings: { ...current.settings, playMode } }))}
       onToggleSide={() => setPanelSide(state.settings.panelSide === 'left' ? 'right' : 'left')}
-      onHide={() =>
-        setState((current) => ({
-          ...current,
-          settings: { ...current.settings, panelHidden: true },
-        }))
-      }
+      onHide={() => setState((current) => ({ ...current, settings: { ...current.settings, panelHidden: true } }))}
+      onResize={setPanelWidth}
+      onAddVideos={addVideosFromText}
     />
-  )
+  ) : null
 
   return (
     <main
-      className={`app panel-${state.settings.panelSide} ${
-        state.settings.panelHidden ? 'panel-hidden' : ''
-      } ${isDragging ? 'dragging' : ''}`}
-      onDragEnter={() => setIsDragging(true)}
-      onDragLeave={(event) => {
-        if (event.currentTarget === event.target) setIsDragging(false)
+      className="app"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={(event) => {
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
       }}
-      onDragOver={(event) => event.preventDefault()}
       onDrop={handleDrop}
     >
-      {!state.settings.panelHidden && state.settings.panelSide === 'left' ? panel : null}
+      {state.settings.panelHidden ? (
+        <EdgeTrigger
+          side={state.settings.panelSide}
+          onShow={() => setState((current) => ({ ...current, settings: { ...current.settings, panelHidden: false } }))}
+        />
+      ) : null}
 
-      <section className="stage" aria-label="YouTube player">
-        <div className="top-bar">
-          <div>
-            <strong>{activePlaylist.name}</strong>
-            <span>{activePlaylist.items.length} videos</span>
+      <div className="main-content">
+        {state.settings.panelSide === 'left' ? panel : null}
+
+        <section className="player-area" aria-label="YouTube player">
+          <div className="yt-wrapper">
+            <div ref={playerHostRef} className="yt-api-host" />
+            {activeItem && !playerReady ? (
+              <iframe
+                className="fallback-player"
+                src={`https://www.youtube.com/embed/${activeItem.videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+                title={activeItem.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            ) : null}
           </div>
-          <div className="top-actions">
-            <button
-              type="button"
-              onClick={() =>
-                setState((current) => ({
-                  ...current,
-                  settings: { ...current.settings, panelHidden: false },
-                }))
-              }
-              title="Show playlist"
-              disabled={!state.settings.panelHidden}
-            >
-              <ListMusic size={18} />
-            </button>
-            <button type="button" onClick={resetState} title="Reset local data">
-              <Save size={18} />
-            </button>
-          </div>
-        </div>
 
-        <Player videoId={activeItem?.videoId ?? null} onEnded={selectNextVideo} />
-      </section>
+          {!activeItem ? (
+            <div className={`drop-overlay ${isDragging ? 'drag-active' : ''}`}>
+              <div className="drop-icon">▶</div>
+              <p className="drop-hint-text">
+                YouTube URL을 여기에 드롭하거나
+                <br />
+                아래에 붙여넣기하세요
+              </p>
+              <UrlInputForm onSubmit={addVideosFromText} />
+            </div>
+          ) : null}
 
-      {!state.settings.panelHidden && state.settings.panelSide === 'right' ? panel : null}
+          {isDragging && activeItem ? <div className="drag-indicator">URL 드롭해서 추가</div> : null}
+        </section>
 
-      {isDragging ? <div className="drop-overlay">Drop to add videos</div> : null}
+        {state.settings.panelSide === 'right' ? panel : null}
+      </div>
     </main>
   )
 }

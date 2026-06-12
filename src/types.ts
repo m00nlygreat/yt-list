@@ -23,6 +23,7 @@ export type Settings = {
   activeItemId: string | null
   panelSide: PanelSide
   panelHidden: boolean
+  panelWidth: number
   playMode: PlayMode
 }
 

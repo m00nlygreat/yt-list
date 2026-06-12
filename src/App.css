@@ -790,6 +790,38 @@ body.is-reordering iframe {
   color: rgba(255, 255, 255, 0.9);
 }
 
+.vi-time-badge {
+  position: absolute;
+  bottom: 3px;
+  z-index: 1;
+  max-width: calc(50% - 4px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.78);
+  color: rgba(255, 255, 255, 0.94);
+  border-radius: 2px;
+  padding: 1px 3px;
+  font-size: 9.5px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.vi-time-current {
+  left: 3px;
+  color: #fff;
+}
+
+.vi-time-duration {
+  right: 3px;
+}
+
+.vi-thumb-sq .vi-time-badge {
+  font-size: 8.5px;
+  padding-inline: 2px;
+}
+
 .vi-meta {
   flex: 1;
   min-width: 0;

@@ -135,6 +135,19 @@ function progressRatio(item: PlaylistItem): number | null {
   return Math.max(0, Math.min(1, item.currentTime / item.duration))
 }
 
+function formatPlaybackTime(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(seconds))
+  const hours = Math.floor(safeSeconds / 3600)
+  const minutes = Math.floor((safeSeconds % 3600) / 60)
+  const remainingSeconds = safeSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
+  }
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`
+}
+
 function embedUrl(item: PlaylistItem): string {
   const params = new URLSearchParams({
     autoplay: '1',
@@ -219,6 +232,10 @@ function VideoItem({
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
   const progress = progressRatio(video)
+  const currentLabel =
+    typeof video.currentTime === 'number' && video.currentTime > 0 ? formatPlaybackTime(video.currentTime) : null
+  const durationLabel =
+    typeof video.duration === 'number' && video.duration > 0 ? formatPlaybackTime(video.duration) : null
 
   function startEdit(event: ReactMouseEvent<HTMLSpanElement>) {
     event.stopPropagation()
@@ -269,6 +286,8 @@ function VideoItem({
           </div>
         ) : null}
         {isActive && !isPlaying ? <div className="vi-paused">▶</div> : null}
+        {currentLabel ? <span className="vi-time-badge vi-time-current">{currentLabel}</span> : null}
+        {durationLabel ? <span className="vi-time-badge vi-time-duration">{durationLabel}</span> : null}
         {iconOnly && progress !== null ? (
           <div className="vi-progress vi-progress-thumb" aria-hidden="true">
             <span style={{ transform: `scaleX(${progress})` }} />
@@ -1041,7 +1060,8 @@ function App() {
             setIsPlaying(event.data === window.YT?.PlayerState.PLAYING)
             if (
               event.data === window.YT?.PlayerState.PAUSED ||
-              event.data === window.YT?.PlayerState.BUFFERING
+              event.data === window.YT?.PlayerState.BUFFERING ||
+              event.data === window.YT?.PlayerState.CUED
             ) {
               readAndSaveActivePlayback(event.target)
             }

@@ -1,18 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import {
-  EyeOff,
+  Bell,
+  BookOpen,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  CircleHelp,
+  Clock3,
+  Download,
   GripVertical,
+  Home,
   ListMusic,
-  PanelLeft,
   PanelRight,
+  PanelRightClose,
   Pencil,
+  Play,
   Plus,
   Repeat1,
-  Save,
+  RotateCcw,
+  Search,
+  Send,
+  Settings,
   Shuffle,
   SkipForward,
+  Sparkles,
   Trash2,
+  Users,
+  Wand2,
+  X,
 } from 'lucide-react'
 import './App.css'
 import { createInitialState, createPlaylist, loadState, makeId, saveState } from './storage'
@@ -55,6 +71,10 @@ function nextMode(mode: PlayMode): PlayMode {
   if (mode === 'sequence') return 'shuffle'
   if (mode === 'shuffle') return 'repeat-one'
   return 'sequence'
+}
+
+function formatCount(count: number): string {
+  return `${count} video${count === 1 ? '' : 's'}`
 }
 
 function Player({
@@ -119,9 +139,11 @@ function Player({
   if (!videoId) {
     return (
       <div className="empty-player">
-        <ListMusic size={42} strokeWidth={1.6} />
-        <h1>Drop YouTube links to start</h1>
-        <p>Videos added here stay on this device and play from the selected playlist.</p>
+        <div className="empty-player-icon">
+          <ListMusic size={32} strokeWidth={1.8} />
+        </div>
+        <h1>Drop YouTube links</h1>
+        <p>Links added here are stored on this device and appear in the selected playlist.</p>
       </div>
     )
   }
@@ -129,10 +151,109 @@ function Player({
   return <div className="player-host" ref={hostRef} />
 }
 
+function Sidebar({ activePlaylistName }: { activePlaylistName: string }) {
+  const navItems = [
+    { key: 'home', label: '홈', icon: Home },
+    { key: 'library', label: '목록', icon: Users, active: true, badge: true },
+    { key: 'courses', label: '과정', icon: BookOpen },
+    { key: 'schedule', label: '일정', icon: CalendarDays },
+    { key: 'notices', label: '공지', icon: Send },
+  ]
+
+  return (
+    <aside className="sidebar" aria-label="Workspace navigation">
+      <button className="brand-mark" type="button" title={activePlaylistName}>
+        Y<span className="dot" />
+      </button>
+      {navItems.map((item) => {
+        const Icon = item.icon
+        return (
+          <button
+            key={item.key}
+            type="button"
+            className={`nav-btn ${item.active ? 'is-active' : ''}`}
+            data-label={item.label}
+            aria-current={item.active ? 'page' : undefined}
+            title={item.label}
+          >
+            <Icon size={20} strokeWidth={1.8} />
+            {item.badge ? <span className="badge" /> : null}
+          </button>
+        )
+      })}
+      <div className="nav-spacer" />
+      <div className="nav-divider" />
+      <button className="nav-btn" type="button" data-label="설정" title="설정">
+        <Settings size={20} strokeWidth={1.8} />
+      </button>
+      <button className="nav-btn" type="button" data-label="도움말" title="도움말">
+        <CircleHelp size={20} strokeWidth={1.8} />
+      </button>
+      <div className="nav-avatar" title="Local profile">
+        YT
+      </div>
+    </aside>
+  )
+}
+
+function Header({
+  activePlaylist,
+  query,
+  railOpen,
+  onQueryChange,
+  onToggleRail,
+}: {
+  activePlaylist: Playlist
+  query: string
+  railOpen: boolean
+  onQueryChange: (query: string) => void
+  onToggleRail: () => void
+}) {
+  return (
+    <header className="header">
+      <div className="app-title">
+        <div className="page-title">
+          <span className="pt-name">YouTube List</span>
+          <span className="pt-sub">{activePlaylist.name}</span>
+        </div>
+      </div>
+      <label className="search">
+        <span className="search-icon">
+          <Search size={22} strokeWidth={1.8} />
+        </span>
+        <input
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="워크스페이스 전체 검색 - 영상, 재생목록, URL..."
+        />
+        <span className="kbd">
+          <span className="key">Ctrl</span>
+          <span className="key">K</span>
+        </span>
+      </label>
+      <div className="header-actions">
+        <button className="iconbtn" type="button" title="알림">
+          <Bell size={20} strokeWidth={1.8} />
+          <span className="dot" />
+        </button>
+        <button
+          className="iconbtn"
+          type="button"
+          onClick={onToggleRail}
+          title={railOpen ? '오른쪽 패널 접기' : '오른쪽 패널 열기'}
+        >
+          <PanelRight size={20} strokeWidth={1.8} />
+        </button>
+      </div>
+    </header>
+  )
+}
+
 function PlaylistPanel({
   playlists,
   activePlaylist,
   activeItemId,
+  items,
   playMode,
   panelSide,
   onAddPlaylist,
@@ -149,6 +270,7 @@ function PlaylistPanel({
   playlists: Playlist[]
   activePlaylist: Playlist
   activeItemId: string | null
+  items: PlaylistItem[]
   playMode: PlayMode
   panelSide: PanelSide
   onAddPlaylist: () => void
@@ -164,8 +286,18 @@ function PlaylistPanel({
 }) {
   return (
     <aside className="playlist-panel">
-      <div className="panel-top">
-        <div className="select-row">
+      <div className="panel-head">
+        <div>
+          <p className="eyebrow">Collection</p>
+          <h2>{activePlaylist.name}</h2>
+        </div>
+        <button className="iconbtn small" type="button" title="패널 숨기기" onClick={onHide}>
+          <X size={18} strokeWidth={1.9} />
+        </button>
+      </div>
+
+      <div className="select-row">
+        <label className="playlist-select">
           <select
             aria-label="Playlist"
             value={activePlaylist.id}
@@ -177,42 +309,41 @@ function PlaylistPanel({
               </option>
             ))}
           </select>
-          <button type="button" className="icon-button" onClick={onAddPlaylist} title="New playlist">
-            <Plus size={18} />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={onRenamePlaylist}
-            title="Rename playlist"
-          >
-            <Pencil size={17} />
-          </button>
-          <button
-            type="button"
-            className="icon-button danger"
-            onClick={onDeletePlaylist}
-            title="Delete playlist"
-            disabled={playlists.length === 1}
-          >
-            <Trash2 size={17} />
-          </button>
-        </div>
+          <ChevronDown size={16} />
+        </label>
+        <button type="button" className="btn iconly" onClick={onAddPlaylist} title="New playlist">
+          <Plus size={17} />
+        </button>
+        <button
+          type="button"
+          className="btn iconly"
+          onClick={onRenamePlaylist}
+          title="Rename playlist"
+        >
+          <Pencil size={16} />
+        </button>
+        <button
+          type="button"
+          className="btn iconly danger"
+          onClick={onDeletePlaylist}
+          title="Delete playlist"
+          disabled={playlists.length === 1}
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
 
-        <div className="toolbar">
-          <button type="button" onClick={onToggleMode} title="Change play mode">
-            {playMode === 'shuffle' ? <Shuffle size={17} /> : null}
-            {playMode === 'repeat-one' ? <Repeat1 size={17} /> : null}
-            {playMode === 'sequence' ? <SkipForward size={17} /> : null}
-            <span>{labelForMode(playMode)}</span>
-          </button>
-          <button type="button" onClick={onToggleSide} title="Move panel">
-            {panelSide === 'left' ? <PanelRight size={17} /> : <PanelLeft size={17} />}
-          </button>
-          <button type="button" onClick={onHide} title="Hide panel">
-            <EyeOff size={17} />
-          </button>
-        </div>
+      <div className="panel-tools">
+        <button type="button" className="chip is-active" onClick={onToggleMode}>
+          {playMode === 'shuffle' ? <Shuffle size={15} /> : null}
+          {playMode === 'repeat-one' ? <Repeat1 size={15} /> : null}
+          {playMode === 'sequence' ? <SkipForward size={15} /> : null}
+          {labelForMode(playMode)}
+        </button>
+        <button type="button" className="chip" onClick={onToggleSide}>
+          <PanelRightClose size={15} />
+          {panelSide === 'right' ? 'Right' : 'Left'}
+        </button>
       </div>
 
       <div className="drop-note">
@@ -221,14 +352,15 @@ function PlaylistPanel({
       </div>
 
       <div className="items" aria-label="Playlist videos">
-        {activePlaylist.items.length === 0 ? (
-          <div className="empty-list">No videos in this playlist.</div>
+        {items.length === 0 ? (
+          <div className="empty-list">
+            <Sparkles size={20} />
+            <strong>No videos</strong>
+            <span>Paste or drop a YouTube URL to build this collection.</span>
+          </div>
         ) : (
-          activePlaylist.items.map((item, index) => (
-            <div
-              className={`playlist-item ${item.id === activeItemId ? 'active' : ''}`}
-              key={item.id}
-            >
+          items.map((item, index) => (
+            <article className={`playlist-item ${item.id === activeItemId ? 'active' : ''}`} key={item.id}>
               <button
                 type="button"
                 className="thumb-button"
@@ -236,22 +368,30 @@ function PlaylistPanel({
                 title={`Play ${item.title}`}
               >
                 <img src={thumbnailUrl(item.videoId)} alt="" loading="lazy" />
-                <span>{index + 1}</span>
+                <span className="play-dot">
+                  <Play size={12} fill="currentColor" />
+                </span>
               </button>
-              <input
-                aria-label="Video title"
-                value={item.title}
-                onChange={(event) => onRenameItem(item.id, event.target.value)}
-              />
+              <div className="item-copy">
+                <div className="item-meta">
+                  <span className="mono">#{String(index + 1).padStart(2, '0')}</span>
+                  <span>{item.videoId}</span>
+                </div>
+                <input
+                  aria-label="Video title"
+                  value={item.title}
+                  onChange={(event) => onRenameItem(item.id, event.target.value)}
+                />
+              </div>
               <button
                 type="button"
-                className="icon-button danger"
+                className="iconbtn small danger"
                 onClick={() => onDeleteItem(item.id)}
                 title="Remove video"
               >
                 <Trash2 size={16} />
               </button>
-            </div>
+            </article>
           ))
         )}
       </div>
@@ -259,9 +399,89 @@ function PlaylistPanel({
   )
 }
 
+function AssistantRail({
+  activePlaylist,
+  activeItem,
+  playMode,
+  onAddPlaylist,
+  onReset,
+}: {
+  activePlaylist: Playlist
+  activeItem: PlaylistItem | null
+  playMode: PlayMode
+  onAddPlaylist: () => void
+  onReset: () => void
+}) {
+  return (
+    <aside className="rail">
+      <section>
+        <h3>
+          <Sparkles size={14} />
+          Assistant
+        </h3>
+        <div className="ai-card">
+          <div className="head">
+            <Wand2 size={14} />
+            Playlist ops
+          </div>
+          <p>
+            Drag YouTube links into the workspace. The first new video becomes active when nothing
+            is playing.
+          </p>
+          <div className="mini-actions">
+            <button type="button" className="mini primary" onClick={onAddPlaylist}>
+              새 목록
+            </button>
+            <button type="button" className="mini" onClick={onReset}>
+              초기화
+            </button>
+          </div>
+        </div>
+      </section>
+      <section>
+        <h3>
+          <CheckCircle2 size={14} />
+          Status
+        </h3>
+        <div className="alert kind-info">
+          <Clock3 size={17} />
+          <div>
+            <strong>{formatCount(activePlaylist.items.length)}</strong>
+            <p>{activePlaylist.name}</p>
+          </div>
+        </div>
+        <div className="alert kind-warn">
+          <SkipForward size={17} />
+          <div>
+            <strong>{labelForMode(playMode)}</strong>
+            <p>Auto-advance mode for ended videos.</p>
+          </div>
+        </div>
+      </section>
+      <section>
+        <h3>
+          <ListMusic size={14} />
+          Now playing
+        </h3>
+        {activeItem ? (
+          <div className="now-card">
+            <img src={thumbnailUrl(activeItem.videoId)} alt="" />
+            <strong>{activeItem.title}</strong>
+            <span className="mono">{activeItem.videoId}</span>
+          </div>
+        ) : (
+          <p className="rail-empty">No active video selected.</p>
+        )}
+      </section>
+    </aside>
+  )
+}
+
 function App() {
   const [state, setState] = useState<AppState>(() => loadState())
   const [isDragging, setIsDragging] = useState(false)
+  const [query, setQuery] = useState('')
+  const [view, setView] = useState<'all' | 'current' | 'recent'>('all')
 
   const activePlaylist = useMemo(() => {
     return (
@@ -274,9 +494,46 @@ function App() {
     return activePlaylist.items.find((item) => item.id === state.settings.activeItemId) ?? null
   }, [activePlaylist.items, state.settings.activeItemId])
 
+  const visibleItems = useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+    let items = [...activePlaylist.items]
+
+    if (view === 'current' && state.settings.activeItemId) {
+      items = items.filter((item) => item.id === state.settings.activeItemId)
+    }
+
+    if (view === 'recent') {
+      items.sort((a, b) => b.addedAt - a.addedAt)
+    }
+
+    if (!normalized) {
+      return items
+    }
+
+    return items.filter((item) => {
+      return (
+        item.title.toLowerCase().includes(normalized) ||
+        item.videoId.toLowerCase().includes(normalized) ||
+        item.url.toLowerCase().includes(normalized)
+      )
+    })
+  }, [activePlaylist.items, query, state.settings.activeItemId, view])
+
   useEffect(() => {
     saveState(state)
   }, [state])
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        document.querySelector<HTMLInputElement>('.search input')?.focus()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   function updateActivePlaylist(updater: (playlist: Playlist) => Playlist) {
     setState((current) => ({
@@ -345,9 +602,7 @@ function App() {
     }
 
     if (state.settings.playMode === 'repeat-one') {
-      if (activeItem) {
-        player?.loadVideoById(activeItem.videoId)
-      }
+      player?.loadVideoById(activeItem.videoId)
       return
     }
 
@@ -489,6 +744,7 @@ function App() {
       playlists={state.playlists}
       activePlaylist={activePlaylist}
       activeItemId={state.settings.activeItemId}
+      items={visibleItems}
       playMode={state.settings.playMode}
       panelSide={state.settings.panelSide}
       onAddPlaylist={addPlaylist}
@@ -514,9 +770,11 @@ function App() {
     />
   )
 
+  const railOpen = !state.settings.panelHidden
+
   return (
     <main
-      className={`app panel-${state.settings.panelSide} ${
+      className={`app-shell panel-${state.settings.panelSide} ${
         state.settings.panelHidden ? 'panel-hidden' : ''
       } ${isDragging ? 'dragging' : ''}`}
       onDragEnter={() => setIsDragging(true)}
@@ -526,40 +784,118 @@ function App() {
       onDragOver={(event) => event.preventDefault()}
       onDrop={handleDrop}
     >
-      {!state.settings.panelHidden && state.settings.panelSide === 'left' ? panel : null}
+      <Sidebar activePlaylistName={activePlaylist.name} />
 
-      <section className="stage" aria-label="YouTube player">
-        <div className="top-bar">
+      <div className="main">
+        <Header
+          activePlaylist={activePlaylist}
+          query={query}
+          railOpen={railOpen}
+          onQueryChange={setQuery}
+          onToggleRail={() =>
+            setState((current) => ({
+              ...current,
+              settings: { ...current.settings, panelHidden: !current.settings.panelHidden },
+            }))
+          }
+        />
+
+        <div
+          className={`body-grid ${state.settings.panelHidden ? 'rail-closed' : ''} ${
+            state.settings.panelSide === 'left' ? 'panel-left' : 'panel-right'
+          }`}
+        >
+          {!state.settings.panelHidden && state.settings.panelSide === 'left' ? panel : null}
+
+          <section className="workspace">
+            <div className="subheader">
+              <div className="tabs" role="tablist" aria-label="Video views">
+                {[
+                  ['all', '전체'],
+                  ['current', '재생 중'],
+                  ['recent', '최근 추가'],
+                ].map(([id, label]) => (
+                  <button
+                    key={id}
+                    className={`tab ${view === id ? 'is-active' : ''}`}
+                    type="button"
+                    onClick={() => setView(id as typeof view)}
+                    role="tab"
+                    aria-selected={view === id}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="toolbar">
+                <button className="btn ghost" type="button">
+                  <Download size={16} />
+                  내보내기
+                </button>
+                <button className="btn primary" type="button" onClick={addPlaylist}>
+                  <Plus size={16} />
+                  목록 추가
+                </button>
+              </div>
+            </div>
+
+            <div className="player-card">
+              <div className="player-topline">
+                <div>
+                  <p className="eyebrow">Player</p>
+                  <h1>{activeItem?.title ?? 'No video selected'}</h1>
+                </div>
+                <div className="player-actions">
+                  <span className="status live">
+                    <span className="status-dot" />
+                    {formatCount(activePlaylist.items.length)}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn tonal"
+                    onClick={() =>
+                      setState((current) => ({
+                        ...current,
+                        settings: { ...current.settings, panelHidden: false },
+                      }))
+                    }
+                    disabled={!state.settings.panelHidden}
+                  >
+                    <ListMusic size={16} />
+                    패널 열기
+                  </button>
+                  <button type="button" className="btn iconly" onClick={resetState} title="Reset local data">
+                    <RotateCcw size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="player-frame">
+                <Player videoId={activeItem?.videoId ?? null} onEnded={selectNextVideo} />
+              </div>
+            </div>
+          </section>
+
+          {!state.settings.panelHidden && state.settings.panelSide === 'right' ? panel : null}
+
+          <AssistantRail
+            activePlaylist={activePlaylist}
+            activeItem={activeItem}
+            playMode={state.settings.playMode}
+            onAddPlaylist={addPlaylist}
+            onReset={resetState}
+          />
+        </div>
+      </div>
+
+      {isDragging ? (
+        <div className="drop-overlay">
           <div>
-            <strong>{activePlaylist.name}</strong>
-            <span>{activePlaylist.items.length} videos</span>
-          </div>
-          <div className="top-actions">
-            <button
-              type="button"
-              onClick={() =>
-                setState((current) => ({
-                  ...current,
-                  settings: { ...current.settings, panelHidden: false },
-                }))
-              }
-              title="Show playlist"
-              disabled={!state.settings.panelHidden}
-            >
-              <ListMusic size={18} />
-            </button>
-            <button type="button" onClick={resetState} title="Reset local data">
-              <Save size={18} />
-            </button>
+            <ListMusic size={28} />
+            <strong>Drop to add videos</strong>
+            <span>YouTube URLs will be appended to {activePlaylist.name}</span>
           </div>
         </div>
-
-        <Player videoId={activeItem?.videoId ?? null} onEnded={selectNextVideo} />
-      </section>
-
-      {!state.settings.panelHidden && state.settings.panelSide === 'right' ? panel : null}
-
-      {isDragging ? <div className="drop-overlay">Drop to add videos</div> : null}
+      ) : null}
     </main>
   )
 }

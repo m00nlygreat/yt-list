@@ -161,8 +161,7 @@ function VideoItem({
   onDelete,
   onRename,
   onReorderStart,
-  onReorderOver,
-  onReorderEnd,
+  onOpenContextMenu,
 }: {
   video: PlaylistItem
   isActive: boolean
@@ -172,9 +171,8 @@ function VideoItem({
   onSelect: (itemId: string) => void
   onDelete: (itemId: string) => void
   onRename: (itemId: string, title: string) => void
-  onReorderStart: (itemId: string, event: DragEvent<HTMLDivElement>) => void
-  onReorderOver: (itemId: string, event: DragEvent<HTMLDivElement>) => void
-  onReorderEnd: () => void
+  onReorderStart: (itemId: string, event: ReactPointerEvent<HTMLDivElement>) => void
+  onOpenContextMenu: (itemId: string, event: ReactMouseEvent<HTMLDivElement>) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -211,11 +209,12 @@ function VideoItem({
       ]
         .filter(Boolean)
         .join(' ')}
+      data-item-id={video.id}
       onClick={() => onSelect(video.id)}
-      draggable={!editing}
-      onDragStart={(event) => onReorderStart(video.id, event)}
-      onDragOver={(event) => onReorderOver(video.id, event)}
-      onDragEnd={onReorderEnd}
+      onPointerDown={(event) => {
+        if (!editing) onReorderStart(video.id, event)
+      }}
+      onContextMenu={(event) => onOpenContextMenu(video.id, event)}
       title={iconOnly ? video.title : undefined}
     >
       <div className={['vi-thumb', iconOnly ? 'vi-thumb-sq' : ''].filter(Boolean).join(' ')}>
@@ -320,7 +319,21 @@ function PlaylistPanel({
     toId: string
     position: 'before' | 'after'
   } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{
+    itemId: string
+    x: number
+    y: number
+  } | null>(null)
   const reorderStateRef = useRef<typeof reorderState>(null)
+  const reorderPointerRef = useRef<{
+    active: boolean
+    fromId: string
+    pointerId: number
+    startX: number
+    startY: number
+  } | null>(null)
+  const reorderCleanupRef = useRef<(() => void) | null>(null)
+  const suppressSelectUntilRef = useRef(0)
   const startXRef = useRef(0)
   const startWidthRef = useRef(0)
   const resizePointerIdRef = useRef<number | null>(null)
@@ -334,7 +347,30 @@ function PlaylistPanel({
   }, [showMenu])
 
   useEffect(() => {
-    return () => resizeCleanupRef.current?.()
+    if (!contextMenu) return
+
+    function closeContextMenu() {
+      setContextMenu(null)
+    }
+
+    window.addEventListener('click', closeContextMenu)
+    window.addEventListener('keydown', closeContextMenu)
+    window.addEventListener('scroll', closeContextMenu, true)
+    window.addEventListener('resize', closeContextMenu)
+
+    return () => {
+      window.removeEventListener('click', closeContextMenu)
+      window.removeEventListener('keydown', closeContextMenu)
+      window.removeEventListener('scroll', closeContextMenu, true)
+      window.removeEventListener('resize', closeContextMenu)
+    }
+  }, [contextMenu])
+
+  useEffect(() => {
+    return () => {
+      resizeCleanupRef.current?.()
+      reorderCleanupRef.current?.()
+    }
   }, [])
 
   function beginResize(event: ReactPointerEvent<HTMLDivElement>) {
@@ -394,63 +430,131 @@ function PlaylistPanel({
   }
 
   function handleDrop(event: DragEvent<HTMLElement>) {
-    if (event.dataTransfer.types.includes('application/x-yt-list-item')) {
-      event.preventDefault()
-      event.stopPropagation()
-      const fromId = event.dataTransfer.getData('application/x-yt-list-item')
-      const currentReorderState = reorderStateRef.current
-      if (fromId && currentReorderState && currentReorderState.fromId === fromId) {
-        onReorderItem(fromId, currentReorderState.toId, currentReorderState.position)
-      }
-      reorderStateRef.current = null
-      setReorderState(null)
-      return
-    }
-
     event.preventDefault()
     event.stopPropagation()
     const text = droppedText(event)
     if (text) onAddVideos(text)
   }
 
-  function beginReorder(itemId: string, event: DragEvent<HTMLDivElement>) {
-    if (event.target instanceof HTMLElement && event.target.closest('button, input')) {
-      event.preventDefault()
-      return
-    }
+  function beginReorder(itemId: string, event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return
+    if (event.target instanceof HTMLElement && event.target.closest('button, input')) return
 
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('application/x-yt-list-item', itemId)
+    reorderCleanupRef.current?.()
     reorderStateRef.current = null
     setReorderState(null)
-  }
-
-  function updateReorderTarget(itemId: string, event: DragEvent<HTMLDivElement>) {
-    const fromId = event.dataTransfer.getData('application/x-yt-list-item')
-    if (!fromId || fromId === itemId) {
-      reorderStateRef.current = null
-      setReorderState(null)
-      return
+    reorderPointerRef.current = {
+      active: false,
+      fromId: itemId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
     }
 
+    const source = event.currentTarget
+    source.setPointerCapture(event.pointerId)
+    const controller = new AbortController()
+    const signal = controller.signal
+
+    function clearReorder() {
+      reorderStateRef.current = null
+      reorderPointerRef.current = null
+      document.body.classList.remove('is-reordering')
+      controller.abort()
+      reorderCleanupRef.current = null
+      setReorderState(null)
+    }
+
+    function finishReorder(nativeEvent?: PointerEvent) {
+      const currentPointer = reorderPointerRef.current
+      if (!currentPointer) return
+      if (nativeEvent && currentPointer.pointerId !== nativeEvent.pointerId) return
+
+      const currentTarget = reorderStateRef.current
+      if (currentPointer.active) {
+        suppressSelectUntilRef.current = Date.now() + 350
+      }
+      if (currentPointer.active && currentTarget && currentTarget.fromId === currentPointer.fromId) {
+        onReorderItem(currentPointer.fromId, currentTarget.toId, currentTarget.position)
+      }
+      if (source.hasPointerCapture(currentPointer.pointerId)) source.releasePointerCapture(currentPointer.pointerId)
+      clearReorder()
+    }
+
+    function moveReorder(nativeEvent: PointerEvent) {
+      const currentPointer = reorderPointerRef.current
+      if (!currentPointer || currentPointer.pointerId !== nativeEvent.pointerId) return
+      if (nativeEvent.buttons === 0) {
+        finishReorder(nativeEvent)
+        return
+      }
+
+      const moved =
+        Math.abs(nativeEvent.clientX - currentPointer.startX) > 4 ||
+        Math.abs(nativeEvent.clientY - currentPointer.startY) > 4
+      if (!currentPointer.active && !moved) return
+
+      currentPointer.active = true
+      document.body.classList.add('is-reordering')
+      nativeEvent.preventDefault()
+
+      const target = document
+        .elementFromPoint(nativeEvent.clientX, nativeEvent.clientY)
+        ?.closest<HTMLElement>('.vi[data-item-id]')
+      const toId = target?.dataset.itemId
+      if (!target || !toId || toId === currentPointer.fromId) {
+        reorderStateRef.current = null
+        setReorderState(null)
+        return
+      }
+
+      const rect = target.getBoundingClientRect()
+      const position: 'before' | 'after' = nativeEvent.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+      const nextState = { fromId: currentPointer.fromId, toId, position }
+      reorderStateRef.current = nextState
+      setReorderState((current) =>
+        current?.fromId === nextState.fromId &&
+        current.toId === nextState.toId &&
+        current.position === nextState.position
+          ? current
+          : nextState,
+      )
+    }
+
+    window.addEventListener('pointermove', moveReorder, { signal })
+    window.addEventListener('pointerup', finishReorder, { signal })
+    window.addEventListener('pointercancel', finishReorder, { signal })
+    window.addEventListener('blur', clearReorder, { signal })
+    reorderCleanupRef.current = clearReorder
+  }
+
+  function selectItemUnlessReordering(itemId: string) {
+    if (Date.now() < suppressSelectUntilRef.current) {
+      return
+    }
+    onSelectItem(itemId)
+  }
+
+  function openItemContextMenu(itemId: string, event: ReactMouseEvent<HTMLDivElement>) {
     event.preventDefault()
     event.stopPropagation()
-    event.dataTransfer.dropEffect = 'move'
-
-    const rect = event.currentTarget.getBoundingClientRect()
-    const position: 'before' | 'after' = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
-    const nextState = { fromId, toId: itemId, position }
-    reorderStateRef.current = nextState
-    setReorderState((current) =>
-      current?.fromId === fromId && current.toId === itemId && current.position === position
-        ? current
-        : nextState,
-    )
+    setContextMenu({
+      itemId,
+      x: event.clientX,
+      y: event.clientY,
+    })
   }
 
-  function endReorder() {
-    reorderStateRef.current = null
-    setReorderState(null)
+  async function copyContextMenuLink() {
+    if (!contextMenu) return
+    const item = activePlaylist.items.find((candidate) => candidate.id === contextMenu.itemId)
+    if (!item) return
+
+    try {
+      await navigator.clipboard.writeText(videoUrl(item.videoId))
+    } finally {
+      setContextMenu(null)
+    }
   }
 
   function submitUrl(event: FormEvent<HTMLFormElement>) {
@@ -648,17 +752,32 @@ function PlaylistPanel({
                   ? reorderState.position
                   : null
               }
-              onSelect={onSelectItem}
+              onSelect={selectItemUnlessReordering}
               onDelete={onDeleteItem}
               onRename={onRenameItem}
               onReorderStart={beginReorder}
-              onReorderOver={updateReorderTarget}
-              onReorderEnd={endReorder}
+              onOpenContextMenu={openItemContextMenu}
               iconOnly={iconOnly}
             />
           ))
         )}
       </div>
+
+      {contextMenu ? (
+        <div
+          className="vi-context-menu"
+          style={{
+            left: `${Math.min(contextMenu.x, window.innerWidth - 150)}px`,
+            top: `${Math.min(contextMenu.y, window.innerHeight - 42)}px`,
+          }}
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <button type="button" className="vi-context-menu-item" onClick={copyContextMenuLink}>
+            Copy link
+          </button>
+        </div>
+      ) : null}
     </aside>
   )
 }
@@ -910,6 +1029,34 @@ function App() {
       window.removeEventListener('drop', handleWindowDrop, true)
       window.removeEventListener('dragleave', handleWindowDragLeave, true)
     }
+  }, [addVideosFromText])
+
+  useEffect(() => {
+    async function handlePasteShortcut(event: globalThis.KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'v') return
+      if (event.altKey || event.shiftKey) return
+
+      const target = event.target
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return
+      }
+
+      try {
+        const text = await navigator.clipboard.readText()
+        if (extractVideoIds(text).length === 0) return
+        event.preventDefault()
+        addVideosFromText(text)
+      } catch {
+        // Clipboard read can be denied by the browser; keep the default paste behavior in that case.
+      }
+    }
+
+    window.addEventListener('keydown', handlePasteShortcut)
+    return () => window.removeEventListener('keydown', handlePasteShortcut)
   }, [addVideosFromText])
 
   function updateActivePlaylist(updater: (playlist: Playlist) => Playlist) {

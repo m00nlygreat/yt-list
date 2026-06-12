@@ -22,6 +22,15 @@ body.is-panel-resizing iframe {
   pointer-events: none;
 }
 
+body.is-reordering {
+  cursor: grabbing;
+  user-select: none;
+}
+
+body.is-reordering iframe {
+  pointer-events: none;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -337,7 +346,6 @@ body.is-panel-resizing iframe {
   border-right: 0;
   border-radius: 6px 0 0 6px;
   transform: translateY(-50%);
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%);
 }
 
 .panel-bookmark-close-r {
@@ -345,7 +353,6 @@ body.is-panel-resizing iframe {
   border-left: 0;
   border-radius: 0 6px 6px 0;
   transform: translateY(-50%);
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%);
 }
 
 .panel-hdr {
@@ -663,6 +670,10 @@ body.is-panel-resizing iframe {
   transition: background 0.08s;
 }
 
+.vi:active {
+  cursor: grabbing;
+}
+
 .vi.vi-drop-before::before,
 .vi.vi-drop-after::after {
   content: '';
@@ -841,4 +852,34 @@ body.is-panel-resizing iframe {
 .vi-del:hover {
   color: #c93232;
   background: rgba(201, 50, 50, 0.1);
+}
+
+.vi-context-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 142px;
+  padding: 4px;
+  background: #111;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.72);
+}
+
+.vi-context-menu-item {
+  width: 100%;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: transparent;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+
+.vi-context-menu-item:hover {
+  background: #1e1e1e;
+  color: #fff;
 }

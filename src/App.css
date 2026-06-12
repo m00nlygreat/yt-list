@@ -421,17 +421,9 @@ body.is-reordering iframe {
   height: 38px;
 }
 
-.rename-icon {
-  font-size: 18px;
-  line-height: 1;
-}
-
-.side-icon {
-  font-size: 16px;
-}
-
-.clear-icon {
-  font-size: 22px;
+.icon-btn svg {
+  width: 19px;
+  height: 19px;
 }
 
 .mode-btn:hover,
@@ -583,6 +575,9 @@ body.is-reordering iframe {
   color: #9a9a9a;
   cursor: pointer;
   font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   text-align: left;
   transition:
     color 0.12s,
@@ -870,6 +865,7 @@ body.is-reordering iframe {
   height: 30px;
   display: flex;
   align-items: center;
+  gap: 8px;
   padding: 0 10px;
   background: transparent;
   border-radius: 4px;

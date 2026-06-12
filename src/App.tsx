@@ -6,6 +6,7 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react'
+import { Copy, PanelLeft, PanelRight, Pencil, Plus, Trash2, X } from 'lucide-react'
 import './App.css'
 import { createPlaylist, loadState, makeId, saveState } from './storage'
 import type { AppState, PanelSide, PlayMode, Playlist, PlaylistItem } from './types'
@@ -575,9 +576,9 @@ function PlaylistPanel({
 
   function startCurrentPlaylistRename() {
     if (!activePlaylist) return
-    setShowMenu(true)
-    setRenamingId(activePlaylist.id)
-    setRenameValue(activePlaylist.name)
+    const name = window.prompt('플레이리스트 이름', activePlaylist.name)
+    if (!name?.trim()) return
+    onRenamePlaylist(activePlaylist.id, name.trim())
   }
 
   return (
@@ -664,7 +665,7 @@ function PlaylistPanel({
                               setShowMenu(false)
                             }}
                           >
-                            ×
+                            <X size={13} strokeWidth={2.2} />
                           </button>
                         ) : null}
                       </div>
@@ -678,23 +679,24 @@ function PlaylistPanel({
                         setShowMenu(false)
                       }}
                     >
-                      + 새 플레이리스트
+                      <Plus size={13} strokeWidth={2.2} />
+                      <span>새 플레이리스트</span>
                     </button>
                   </div>
                 ) : null}
               </div>
 
               <button className="icon-btn rename-icon" type="button" onClick={startCurrentPlaylistRename} title="플레이리스트 이름 변경">
-                ✎
+                <Pencil size={18} strokeWidth={2} />
               </button>
               <button className="icon-btn side-icon" type="button" onClick={onToggleSide} title={panelSide === 'right' ? '왼쪽으로' : '오른쪽으로'}>
-                {panelSide === 'right' ? '⇦' : '⇨'}
+                {panelSide === 'right' ? <PanelLeft size={19} strokeWidth={2} /> : <PanelRight size={19} strokeWidth={2} />}
               </button>
             </>
           ) : null}
 
           <button className="icon-btn clear-icon" type="button" onClick={onClearPlaylist} title="플레이리스트 비우기">
-            ⌫
+            <Trash2 size={19} strokeWidth={2} />
           </button>
         </div>
 
@@ -783,7 +785,8 @@ function PlaylistPanel({
           onContextMenu={(event) => event.preventDefault()}
         >
           <button type="button" className="vi-context-menu-item" onClick={copyContextMenuLink}>
-            Copy link
+            <Copy size={13} strokeWidth={2} />
+            <span>Copy link</span>
           </button>
         </div>
       ) : null}

@@ -42,12 +42,13 @@ button {
 .edge-trigger::after {
   content: '';
   position: absolute;
-  top: 50%;
+  top: var(--edge-y, 50%);
   width: 160px;
-  height: 140vh;
+  height: min(1260px, 210vh);
   opacity: 0;
   pointer-events: none;
   transition:
+    top 0.08s linear,
     opacity 1.5s cubic-bezier(0.16, 1, 0.3, 1),
     transform 1.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -221,6 +222,13 @@ button {
   pointer-events: none;
   z-index: 20;
   white-space: nowrap;
+}
+
+.player-drop-catcher {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  background: transparent;
 }
 
 .panel {

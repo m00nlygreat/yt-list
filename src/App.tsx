@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
+import type {
+  CSSProperties,
+  DragEvent,
+  FormEvent,
+  KeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+} from 'react'
 import './App.css'
 import { createPlaylist, loadState, makeId, saveState } from './storage'
 import type { AppState, PanelSide, PlayMode, Playlist, PlaylistItem } from './types'
@@ -82,12 +88,33 @@ function RepeatIcon() {
   )
 }
 
+function droppedTextFromDataTransfer(dataTransfer: DataTransfer | null): string {
+  return (
+    dataTransfer?.getData('text/uri-list') ||
+    dataTransfer?.getData('text/plain') ||
+    dataTransfer?.getData('text') ||
+    ''
+  )
+}
+
+function droppedText(event: DragEvent<HTMLElement>): string {
+  return droppedTextFromDataTransfer(event.dataTransfer)
+}
+
 function EdgeTrigger({ side, onShow }: { side: PanelSide; onShow: () => void }) {
+  const [cursorY, setCursorY] = useState('50%')
+  const style = { '--edge-y': cursorY } as CSSProperties
+
   return (
     <button
       type="button"
       className={`edge-trigger ${side === 'right' ? 'edge-trigger-r' : 'edge-trigger-l'}`}
+      style={style}
       onClick={onShow}
+      onMouseMove={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect()
+        setCursorY(`${event.clientY - rect.top}px`)
+      }}
       title="패널 열기"
       aria-label="패널 열기"
     />
@@ -305,7 +332,7 @@ function PlaylistPanel({
   function handleDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault()
     event.stopPropagation()
-    const text = event.dataTransfer.getData('text/plain') || event.dataTransfer.getData('text/uri-list')
+    const text = droppedText(event)
     if (text) onAddVideos(text)
   }
 
@@ -632,7 +659,13 @@ function App() {
         ?.items.map((item) => item.videoId) ?? [],
     )
     const newIds = ids.filter((videoId) => !existingIds.has(videoId))
-    if (newIds.length === 0) return
+    if (newIds.length === 0) {
+      setState((previous) => ({
+        ...previous,
+        settings: { ...previous.settings, panelHidden: false },
+      }))
+      return
+    }
 
     const newItems: PlaylistItem[] = newIds.map((videoId) => ({
       id: makeId('item'),
@@ -656,6 +689,7 @@ function App() {
         ),
         settings: {
           ...previous.settings,
+          panelHidden: false,
           activeItemId: shouldSelectFirst ? newItems[0].id : previous.settings.activeItemId,
         },
       }
@@ -681,6 +715,62 @@ function App() {
       })
     }
   }, [])
+
+  useEffect(() => {
+    function isPlayerDragEvent(event: globalThis.DragEvent) {
+      const target = event.target
+      if (!(target instanceof Element)) return false
+      return Boolean(target.closest('.player-area')) && !target.closest('.panel')
+    }
+
+    function handleWindowDragEnter(event: globalThis.DragEvent) {
+      if (!isPlayerDragEvent(event)) return
+      event.stopPropagation()
+      dragCountRef.current += 1
+      setIsDragging(true)
+    }
+
+    function handleWindowDragOver(event: globalThis.DragEvent) {
+      if (!isPlayerDragEvent(event)) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+    }
+
+    function handleWindowDrop(event: globalThis.DragEvent) {
+      if (!isPlayerDragEvent(event)) return
+      event.preventDefault()
+      event.stopPropagation()
+      dragCountRef.current = 0
+      setIsDragging(false)
+      const text = droppedTextFromDataTransfer(event.dataTransfer)
+      if (text) addVideosFromText(text)
+    }
+
+    function handleWindowDragLeave(event: globalThis.DragEvent) {
+      if (
+        event.clientX <= 0 ||
+        event.clientY <= 0 ||
+        event.clientX >= window.innerWidth ||
+        event.clientY >= window.innerHeight
+      ) {
+        dragCountRef.current = 0
+        setIsDragging(false)
+      }
+    }
+
+    window.addEventListener('dragenter', handleWindowDragEnter, true)
+    window.addEventListener('dragover', handleWindowDragOver, true)
+    window.addEventListener('drop', handleWindowDrop, true)
+    window.addEventListener('dragleave', handleWindowDragLeave, true)
+
+    return () => {
+      window.removeEventListener('dragenter', handleWindowDragEnter, true)
+      window.removeEventListener('dragover', handleWindowDragOver, true)
+      window.removeEventListener('drop', handleWindowDrop, true)
+      window.removeEventListener('dragleave', handleWindowDragLeave, true)
+    }
+  }, [addVideosFromText])
 
   function updateActivePlaylist(updater: (playlist: Playlist) => Playlist) {
     setState((current) => ({
@@ -795,7 +885,7 @@ function App() {
     event.preventDefault()
     dragCountRef.current = 0
     setIsDragging(false)
-    const text = event.dataTransfer.getData('text/plain') || event.dataTransfer.getData('text/uri-list')
+    const text = droppedText(event)
     if (text) addVideosFromText(text)
   }
 
@@ -871,6 +961,7 @@ function App() {
           ) : null}
 
           {isDragging && activeItem ? <div className="drag-indicator">URL 드롭해서 추가</div> : null}
+          {isDragging && activeItem ? <div className="player-drop-catcher" aria-hidden="true" /> : null}
         </section>
 
         {state.settings.panelSide === 'right' ? panel : null}

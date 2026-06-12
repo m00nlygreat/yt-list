@@ -13,6 +13,15 @@ button {
   border: 0;
 }
 
+body.is-panel-resizing {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+body.is-panel-resizing iframe {
+  pointer-events: none;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -261,6 +270,8 @@ button {
   cursor: ew-resize;
   z-index: 40;
   background: transparent;
+  touch-action: none;
+  user-select: none;
 }
 
 .rh::after {
@@ -295,7 +306,7 @@ button {
 
 .panel-bookmark-close {
   position: absolute;
-  top: 82px;
+  top: 50%;
   width: 30px;
   height: 58px;
   z-index: 45;
@@ -325,6 +336,7 @@ button {
   left: -30px;
   border-right: 0;
   border-radius: 6px 0 0 6px;
+  transform: translateY(-50%);
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%);
 }
 
@@ -332,6 +344,7 @@ button {
   right: -30px;
   border-left: 0;
   border-radius: 0 6px 6px 0;
+  transform: translateY(-50%);
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%);
 }
 

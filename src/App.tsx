@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
+import type {
+  DragEvent,
+  FormEvent,
+  KeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from 'react'
 import './App.css'
 import { createPlaylist, loadState, makeId, saveState } from './storage'
 import type { AppState, PanelSide, PlayMode, Playlist, PlaylistItem } from './types'
@@ -315,9 +321,10 @@ function PlaylistPanel({
     position: 'before' | 'after'
   } | null>(null)
   const reorderStateRef = useRef<typeof reorderState>(null)
-  const draggingRef = useRef(false)
   const startXRef = useRef(0)
   const startWidthRef = useRef(0)
+  const resizePointerIdRef = useRef<number | null>(null)
+  const resizeCleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     if (!showMenu) return
@@ -327,30 +334,63 @@ function PlaylistPanel({
   }, [showMenu])
 
   useEffect(() => {
-    function handleMove(event: MouseEvent) {
-      if (!draggingRef.current) return
-      const delta = panelSide === 'right' ? startXRef.current - event.clientX : event.clientX - startXRef.current
-      const width = Math.max(52, Math.min(window.innerWidth * 0.55, startWidthRef.current + delta))
-      onResize(Math.round(width))
-    }
+    return () => resizeCleanupRef.current?.()
+  }, [])
 
-    function handleUp() {
-      draggingRef.current = false
-    }
-
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
-    }
-  }, [onResize, panelSide])
-
-  function beginResize(event: ReactMouseEvent<HTMLDivElement>) {
-    draggingRef.current = true
+  function beginResize(event: ReactPointerEvent<HTMLDivElement>) {
+    resizeCleanupRef.current?.()
     startXRef.current = event.clientX
     startWidthRef.current = panelWidth
+    resizePointerIdRef.current = event.pointerId
+    event.currentTarget.setPointerCapture(event.pointerId)
+    document.body.classList.add('is-panel-resizing')
+
+    const handle = event.currentTarget
+    const controller = new AbortController()
+    const signal = controller.signal
+
+    function finishResize(nativeEvent?: PointerEvent) {
+      if (nativeEvent && resizePointerIdRef.current !== nativeEvent.pointerId) return
+      if (resizePointerIdRef.current !== null && handle.hasPointerCapture(resizePointerIdRef.current)) {
+        handle.releasePointerCapture(resizePointerIdRef.current)
+      }
+      resizePointerIdRef.current = null
+      document.body.classList.remove('is-panel-resizing')
+      controller.abort()
+      resizeCleanupRef.current = null
+    }
+
+    function moveResize(nativeEvent: PointerEvent) {
+      if (resizePointerIdRef.current !== nativeEvent.pointerId) return
+      if (nativeEvent.buttons === 0) {
+        finishResize(nativeEvent)
+        return
+      }
+      const delta =
+        panelSide === 'right' ? startXRef.current - nativeEvent.clientX : nativeEvent.clientX - startXRef.current
+      const width = Math.max(52, Math.min(window.innerWidth * 0.55, startWidthRef.current + delta))
+      onResize(Math.round(width))
+      nativeEvent.preventDefault()
+    }
+
+    function cancelResize() {
+      resizePointerIdRef.current = null
+      document.body.classList.remove('is-panel-resizing')
+      controller.abort()
+      resizeCleanupRef.current = null
+    }
+
+    window.addEventListener('pointermove', moveResize, { signal })
+    window.addEventListener('pointerup', finishResize, { signal })
+    window.addEventListener('pointercancel', finishResize, { signal })
+    window.addEventListener('blur', cancelResize, { signal })
+    resizeCleanupRef.current = cancelResize
     event.preventDefault()
+  }
+
+  function endResize(event: ReactPointerEvent<HTMLDivElement>) {
+    resizeCleanupRef.current?.()
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
   }
 
   function handleDrop(event: DragEvent<HTMLElement>) {
@@ -437,7 +477,13 @@ function PlaylistPanel({
       }}
       onDrop={handleDrop}
     >
-      <div className={`rh ${panelSide === 'right' ? 'rh-l' : 'rh-r'}`} onMouseDown={beginResize} />
+      <div
+        className={`rh ${panelSide === 'right' ? 'rh-l' : 'rh-r'}`}
+        onPointerDown={beginResize}
+        onPointerUp={endResize}
+        onPointerCancel={endResize}
+        onLostPointerCapture={endResize}
+      />
       <button
         className={`panel-bookmark-close ${panelSide === 'right' ? 'panel-bookmark-close-l' : 'panel-bookmark-close-r'}`}
         type="button"

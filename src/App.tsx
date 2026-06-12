@@ -110,7 +110,7 @@ function EdgeTrigger({ side, onShow }: { side: PanelSide; onShow: () => void }) 
       type="button"
       className={`edge-trigger ${side === 'right' ? 'edge-trigger-r' : 'edge-trigger-l'}`}
       onClick={onShow}
-      onMouseMove={(event) => {
+      onPointerMove={(event) => {
         const rect = event.currentTarget.getBoundingClientRect()
         triggerRef.current?.style.setProperty('--edge-y', `${event.clientY - rect.top}px`)
       }}
@@ -150,17 +150,25 @@ function VideoItem({
   isActive,
   isPlaying,
   iconOnly,
+  dropPosition,
   onSelect,
   onDelete,
   onRename,
+  onReorderStart,
+  onReorderOver,
+  onReorderEnd,
 }: {
   video: PlaylistItem
   isActive: boolean
   isPlaying: boolean
   iconOnly: boolean
+  dropPosition: 'before' | 'after' | null
   onSelect: (itemId: string) => void
   onDelete: (itemId: string) => void
   onRename: (itemId: string, title: string) => void
+  onReorderStart: (itemId: string, event: DragEvent<HTMLDivElement>) => void
+  onReorderOver: (itemId: string, event: DragEvent<HTMLDivElement>) => void
+  onReorderEnd: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -189,10 +197,19 @@ function VideoItem({
 
   return (
     <div
-      className={['vi', isActive ? 'vi-active' : '', iconOnly ? 'vi-icon-mode' : '']
+      className={[
+        'vi',
+        isActive ? 'vi-active' : '',
+        iconOnly ? 'vi-icon-mode' : '',
+        dropPosition ? `vi-drop-${dropPosition}` : '',
+      ]
         .filter(Boolean)
         .join(' ')}
       onClick={() => onSelect(video.id)}
+      draggable={!editing}
+      onDragStart={(event) => onReorderStart(video.id, event)}
+      onDragOver={(event) => onReorderOver(video.id, event)}
+      onDragEnd={onReorderEnd}
       title={iconOnly ? video.title : undefined}
     >
       <div className={['vi-thumb', iconOnly ? 'vi-thumb-sq' : ''].filter(Boolean).join(' ')}>
@@ -258,6 +275,7 @@ function PlaylistPanel({
   onSelectItem,
   onDeleteItem,
   onRenameItem,
+  onReorderItem,
   onSetPlayMode,
   onToggleSide,
   onHide,
@@ -278,6 +296,7 @@ function PlaylistPanel({
   onSelectItem: (itemId: string) => void
   onDeleteItem: (itemId: string) => void
   onRenameItem: (itemId: string, title: string) => void
+  onReorderItem: (fromItemId: string, toItemId: string, position: 'before' | 'after') => void
   onSetPlayMode: (mode: PlayMode) => void
   onToggleSide: () => void
   onHide: () => void
@@ -290,6 +309,12 @@ function PlaylistPanel({
   const [renameValue, setRenameValue] = useState('')
   const [showUrlInput, setShowUrlInput] = useState(false)
   const [urlValue, setUrlValue] = useState('')
+  const [reorderState, setReorderState] = useState<{
+    fromId: string
+    toId: string
+    position: 'before' | 'after'
+  } | null>(null)
+  const reorderStateRef = useRef<typeof reorderState>(null)
   const draggingRef = useRef(false)
   const startXRef = useRef(0)
   const startWidthRef = useRef(0)
@@ -329,10 +354,63 @@ function PlaylistPanel({
   }
 
   function handleDrop(event: DragEvent<HTMLElement>) {
+    if (event.dataTransfer.types.includes('application/x-yt-list-item')) {
+      event.preventDefault()
+      event.stopPropagation()
+      const fromId = event.dataTransfer.getData('application/x-yt-list-item')
+      const currentReorderState = reorderStateRef.current
+      if (fromId && currentReorderState && currentReorderState.fromId === fromId) {
+        onReorderItem(fromId, currentReorderState.toId, currentReorderState.position)
+      }
+      reorderStateRef.current = null
+      setReorderState(null)
+      return
+    }
+
     event.preventDefault()
     event.stopPropagation()
     const text = droppedText(event)
     if (text) onAddVideos(text)
+  }
+
+  function beginReorder(itemId: string, event: DragEvent<HTMLDivElement>) {
+    if (event.target instanceof HTMLElement && event.target.closest('button, input')) {
+      event.preventDefault()
+      return
+    }
+
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('application/x-yt-list-item', itemId)
+    reorderStateRef.current = null
+    setReorderState(null)
+  }
+
+  function updateReorderTarget(itemId: string, event: DragEvent<HTMLDivElement>) {
+    const fromId = event.dataTransfer.getData('application/x-yt-list-item')
+    if (!fromId || fromId === itemId) {
+      reorderStateRef.current = null
+      setReorderState(null)
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'move'
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const position: 'before' | 'after' = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+    const nextState = { fromId, toId: itemId, position }
+    reorderStateRef.current = nextState
+    setReorderState((current) =>
+      current?.fromId === fromId && current.toId === itemId && current.position === position
+        ? current
+        : nextState,
+    )
+  }
+
+  function endReorder() {
+    reorderStateRef.current = null
+    setReorderState(null)
   }
 
   function submitUrl(event: FormEvent<HTMLFormElement>) {
@@ -360,6 +438,15 @@ function PlaylistPanel({
       onDrop={handleDrop}
     >
       <div className={`rh ${panelSide === 'right' ? 'rh-l' : 'rh-r'}`} onMouseDown={beginResize} />
+      <button
+        className={`panel-bookmark-close ${panelSide === 'right' ? 'panel-bookmark-close-l' : 'panel-bookmark-close-r'}`}
+        type="button"
+        onClick={onHide}
+        title="패널 닫기"
+        aria-label="패널 닫기"
+      >
+        ×
+      </button>
 
       <div className="panel-hdr">
         <div className="panel-hdr-top">
@@ -510,9 +597,17 @@ function PlaylistPanel({
               video={video}
               isActive={video.id === activeItemId}
               isPlaying={video.id === activeItemId && isPlaying}
+              dropPosition={
+                reorderState?.toId === video.id && reorderState.fromId !== video.id
+                  ? reorderState.position
+                  : null
+              }
               onSelect={onSelectItem}
               onDelete={onDeleteItem}
               onRename={onRenameItem}
+              onReorderStart={beginReorder}
+              onReorderOver={updateReorderTarget}
+              onReorderEnd={endReorder}
               iconOnly={iconOnly}
             />
           ))
@@ -859,6 +954,29 @@ function App() {
     }))
   }
 
+  function reorderItem(fromItemId: string, toItemId: string, position: 'before' | 'after') {
+    if (fromItemId === toItemId) return
+
+    updateActivePlaylist((playlist) => {
+      const fromIndex = playlist.items.findIndex((item) => item.id === fromItemId)
+      const toIndex = playlist.items.findIndex((item) => item.id === toItemId)
+      if (fromIndex < 0 || toIndex < 0) return playlist
+
+      const items = [...playlist.items]
+      const [movingItem] = items.splice(fromIndex, 1)
+      const adjustedToIndex = items.findIndex((item) => item.id === toItemId)
+      const insertIndex = position === 'before' ? adjustedToIndex : adjustedToIndex + 1
+
+      items.splice(insertIndex, 0, movingItem)
+
+      return {
+        ...playlist,
+        items,
+        updatedAt: Date.now(),
+      }
+    })
+  }
+
   function setPanelSide(panelSide: PanelSide) {
     setState((current) => ({ ...current, settings: { ...current.settings, panelSide } }))
   }
@@ -904,6 +1022,7 @@ function App() {
       onSelectItem={selectItem}
       onDeleteItem={deleteItem}
       onRenameItem={renameItem}
+      onReorderItem={reorderItem}
       onSetPlayMode={(playMode) => setState((current) => ({ ...current, settings: { ...current.settings, playMode } }))}
       onToggleSide={() => setPanelSide(state.settings.panelSide === 'left' ? 'right' : 'left')}
       onHide={() => setState((current) => ({ ...current, settings: { ...current.settings, panelHidden: true } }))}

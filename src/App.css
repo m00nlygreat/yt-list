@@ -42,21 +42,21 @@ button {
 .edge-trigger::after {
   content: '';
   position: absolute;
-  top: var(--edge-y, 50%);
+  top: 0;
+  bottom: 0;
   width: 160px;
-  height: min(1260px, 210vh);
   opacity: 0;
   pointer-events: none;
   transition:
-    opacity 1.5s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 0.18s ease-out,
+    transform 0.18s ease-out;
 }
 
 .edge-trigger-r::after {
   right: 0;
-  transform: translateY(-50%) translateX(28px);
+  transform: translateX(28px);
   background: radial-gradient(
-    ellipse at 100% 50%,
+    ellipse 160px 630px at 100% var(--edge-y, 50%),
     rgba(255, 255, 255, 0.32) 0%,
     rgba(255, 255, 255, 0.14) 22%,
     rgba(255, 255, 255, 0.04) 50%,
@@ -66,9 +66,9 @@ button {
 
 .edge-trigger-l::after {
   left: 0;
-  transform: translateY(-50%) translateX(-28px);
+  transform: translateX(-28px);
   background: radial-gradient(
-    ellipse at 0% 50%,
+    ellipse 160px 630px at 0% var(--edge-y, 50%),
     rgba(255, 255, 255, 0.32) 0%,
     rgba(255, 255, 255, 0.14) 22%,
     rgba(255, 255, 255, 0.04) 50%,
@@ -79,7 +79,7 @@ button {
 .edge-trigger-r:hover::after,
 .edge-trigger-l:hover::after {
   opacity: 1;
-  transform: translateY(-50%) translateX(0);
+  transform: translateX(0);
 }
 
 .main-content {
@@ -150,11 +150,11 @@ button {
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  color: #242424;
+  color: #4a4a4a;
 }
 
 .drop-hint-text {
-  color: #333;
+  color: #5f5f5f;
   font-size: 13px;
   line-height: 1.75;
   text-align: center;
@@ -293,6 +293,48 @@ button {
   left: 2px;
 }
 
+.panel-bookmark-close {
+  position: absolute;
+  top: 82px;
+  width: 30px;
+  height: 58px;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #070707;
+  border: 1px solid #191919;
+  color: #b8b8b8;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.42);
+  transition:
+    color 0.12s,
+    background 0.12s,
+    border-color 0.12s;
+}
+
+.panel-bookmark-close:hover {
+  background: #101010;
+  border-color: #282828;
+  color: #fff;
+}
+
+.panel-bookmark-close-l {
+  left: -30px;
+  border-right: 0;
+  border-radius: 6px 0 0 6px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%);
+}
+
+.panel-bookmark-close-r {
+  right: -30px;
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%);
+}
+
 .panel-hdr {
   display: flex;
   flex-direction: column;
@@ -302,19 +344,19 @@ button {
 }
 
 .panel-hdr-top {
-  height: 40px;
+  height: 52px;
   display: flex;
   align-items: center;
-  padding: 0 4px 0 6px;
-  gap: 1px;
+  padding: 0 7px 0 9px;
+  gap: 3px;
 }
 
 .panel-hdr-modes {
-  height: 30px;
+  height: 40px;
   display: flex;
   align-items: center;
-  padding: 0 4px 0 6px;
-  gap: 1px;
+  padding: 0 7px 0 9px;
+  gap: 3px;
   border-top: 1px solid #0d0d0d;
 }
 
@@ -323,9 +365,9 @@ button {
 }
 
 .panel-count {
-  font-size: 10px;
-  color: #2a2a2a;
-  padding-right: 4px;
+  font-size: 12px;
+  color: #737373;
+  padding-right: 6px;
   flex-shrink: 0;
 }
 
@@ -336,7 +378,7 @@ button {
   justify-content: center;
   background: none;
   border-radius: 5px;
-  color: #3a3a3a;
+  color: #8c8c8c;
   cursor: pointer;
   flex-shrink: 0;
   transition:
@@ -345,36 +387,41 @@ button {
 }
 
 .mode-btn {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
+}
+
+.mode-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .icon-btn {
-  width: 30px;
-  height: 30px;
+  width: 38px;
+  height: 38px;
 }
 
 .add-icon {
-  font-size: 18px;
+  font-size: 24px;
   line-height: 1;
 }
 
 .side-icon {
-  font-size: 12px;
+  font-size: 16px;
 }
 
 .close-icon {
-  font-size: 16px;
+  font-size: 22px;
 }
 
 .mode-btn:hover,
 .icon-btn:hover {
-  color: #777;
+  color: #d2d2d2;
   background: #0e0e0e;
 }
 
 .icon-btn:hover {
-  color: #aaa;
+  color: #f0f0f0;
 }
 
 .mode-btn.active {
@@ -395,19 +442,19 @@ button {
   gap: 4px;
   background: none;
   border: none;
-  color: #777;
+  color: #c7c7c7;
   cursor: pointer;
-  padding: 5px 6px;
+  padding: 8px 8px;
   border-radius: 5px;
   text-align: left;
-  font-size: 11.5px;
+  font-size: 14.5px;
   transition:
     color 0.12s,
     background 0.12s;
 }
 
 .pl-btn:hover {
-  color: #ccc;
+  color: #fff;
   background: #0f0f0f;
 }
 
@@ -420,8 +467,8 @@ button {
 }
 
 .pl-arrow {
-  font-size: 8px;
-  opacity: 0.45;
+  font-size: 10px;
+  opacity: 0.75;
   flex-shrink: 0;
 }
 
@@ -443,8 +490,8 @@ button {
   align-items: center;
   padding: 8px 10px;
   cursor: pointer;
-  font-size: 11.5px;
-  color: #888;
+  font-size: 12.5px;
+  color: #bdbdbd;
   gap: 6px;
   transition:
     background 0.1s,
@@ -453,7 +500,7 @@ button {
 
 .pl-menu-item:hover {
   background: #181818;
-  color: #ddd;
+  color: #fff;
 }
 
 .pl-menu-item.cur {
@@ -488,7 +535,7 @@ button {
   align-items: center;
   justify-content: center;
   background: none;
-  color: #555;
+  color: #9a9a9a;
   cursor: pointer;
   font-size: 13px;
   border-radius: 3px;
@@ -513,7 +560,7 @@ button {
   padding: 8px 10px;
   background: none;
   border-top: 1px solid #181818;
-  color: #484848;
+  color: #9a9a9a;
   cursor: pointer;
   font-size: 11px;
   text-align: left;
@@ -523,7 +570,7 @@ button {
 }
 
 .pl-add-btn:hover {
-  color: #999;
+  color: #e0e0e0;
   background: #0e0e0e;
 }
 
@@ -549,7 +596,7 @@ button {
 }
 
 .panel-url-input::placeholder {
-  color: #2c2c2c;
+  color: #666;
 }
 
 .panel-url-input:focus {
@@ -580,7 +627,7 @@ button {
 .panel-empty {
   padding: 28px 12px;
   text-align: center;
-  color: #252525;
+  color: #626262;
   font-size: 11.5px;
   line-height: 1.75;
 }
@@ -601,6 +648,27 @@ button {
   border-left: 2px solid transparent;
   min-height: 52px;
   transition: background 0.08s;
+}
+
+.vi.vi-drop-before::before,
+.vi.vi-drop-after::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: #c93232;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.vi.vi-drop-before::before {
+  top: 0;
+}
+
+.vi.vi-drop-after::after {
+  bottom: 0;
 }
 
 .vi:hover {
@@ -698,7 +766,7 @@ button {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .vi-meta {
@@ -713,12 +781,12 @@ button {
   overflow: hidden;
   font-size: 11.5px;
   line-height: 1.45;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.78);
   word-break: break-word;
 }
 
 .vi-active .vi-title {
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.98);
 }
 
 .vi-input {
@@ -740,7 +808,7 @@ button {
   align-items: center;
   justify-content: center;
   background: none;
-  color: #404040;
+  color: #8a8a8a;
   cursor: pointer;
   font-size: 15px;
   border-radius: 3px;

@@ -968,6 +968,7 @@ function App() {
   const activeItem = useMemo(() => {
     return activePlaylist.items.find((item) => item.id === state.settings.activeItemId) ?? null
   }, [activePlaylist.items, state.settings.activeItemId])
+  const activeItemId = state.settings.activeItemId
 
   useEffect(() => {
     stateRef.current = state
@@ -1051,7 +1052,7 @@ function App() {
   }, [markActiveItemCompleted, readAndSaveActivePlayback, selectNextVideo])
 
   useEffect(() => {
-    if (!isPlaying || !activeItem) return
+    if (!isPlaying || !activeItemId) return
 
     const interval = window.setInterval(() => {
       const player = playerRef.current
@@ -1060,24 +1061,30 @@ function App() {
     }, 1000)
 
     return () => window.clearInterval(interval)
-  }, [activeItem, isPlaying, readAndSaveActivePlayback])
+  }, [activeItemId, isPlaying, readAndSaveActivePlayback])
 
   useEffect(() => {
-    if (!activeItem) {
+    if (!activeItemId) {
       playerRef.current?.stopVideo?.()
       return
     }
 
     if (!playerRef.current) return
+    const current = stateRef.current
+    const playlist =
+      current.playlists.find((candidate) => candidate.id === current.settings.activePlaylistId) ??
+      current.playlists[0]
+    const item = playlist?.items.find((candidate) => candidate.id === activeItemId)
+    if (!item) return
 
     if (shouldPlayRef.current) {
       shouldPlayRef.current = false
-      playerRef.current.loadVideoById(playerVideoPayload(activeItem))
+      playerRef.current.loadVideoById(playerVideoPayload(item))
       return
     }
 
-    playerRef.current.cueVideoById(playerVideoPayload(activeItem))
-  }, [activeItem])
+    playerRef.current.cueVideoById(playerVideoPayload(item))
+  }, [activeItemId, playerReady])
 
   const addVideosFromText = useCallback((text: string) => {
     const ids = extractVideoIds(text)

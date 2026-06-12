@@ -793,6 +793,9 @@ body.is-reordering iframe {
 .vi-meta {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .vi-title {
@@ -819,6 +822,36 @@ body.is-reordering iframe {
   color: #fff;
   font-size: 11.5px;
   outline: none;
+}
+
+.vi-progress {
+  height: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+}
+
+.vi-progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #c93232;
+  border-radius: inherit;
+  transform-origin: left center;
+}
+
+.vi-progress-thumb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.vi-progress-meta {
+  width: 100%;
 }
 
 .vi-del {

@@ -8,6 +8,9 @@ export type PlaylistItem = {
   title: string
   url: string
   addedAt: number
+  currentTime?: number
+  duration?: number
+  completed?: boolean
 }
 
 export type Playlist = {

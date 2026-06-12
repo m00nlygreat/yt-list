@@ -108,6 +108,37 @@ function hasTextDrop(dataTransfer: DataTransfer | null): boolean {
   )
 }
 
+function playbackStartSeconds(item: PlaylistItem): number | undefined {
+  if (typeof item.currentTime !== 'number' || !Number.isFinite(item.currentTime)) return undefined
+  const seconds = Math.max(0, Math.floor(item.currentTime))
+  return seconds > 0 ? seconds : undefined
+}
+
+function playerVideoPayload(item: PlaylistItem): string | { videoId: string; startSeconds?: number } {
+  const startSeconds = playbackStartSeconds(item)
+  return startSeconds === undefined ? item.videoId : { videoId: item.videoId, startSeconds }
+}
+
+function progressRatio(item: PlaylistItem): number | null {
+  if (item.completed) return 1
+  if (typeof item.duration !== 'number' || item.duration <= 0) return null
+  if (typeof item.currentTime !== 'number' || item.currentTime <= 0) return null
+  return Math.max(0, Math.min(1, item.currentTime / item.duration))
+}
+
+function embedUrl(item: PlaylistItem): string {
+  const params = new URLSearchParams({
+    autoplay: '1',
+    rel: '0',
+    modestbranding: '1',
+    playsinline: '1',
+  })
+  const startSeconds = playbackStartSeconds(item)
+  if (startSeconds !== undefined) params.set('start', String(startSeconds))
+
+  return `https://www.youtube.com/embed/${item.videoId}?${params.toString()}`
+}
+
 function EdgeTrigger({ side, onShow }: { side: PanelSide; onShow: () => void }) {
   const triggerRef = useRef<HTMLButtonElement | null>(null)
 
@@ -178,6 +209,7 @@ function VideoItem({
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const progress = progressRatio(video)
 
   function startEdit(event: ReactMouseEvent<HTMLSpanElement>) {
     event.stopPropagation()
@@ -228,6 +260,11 @@ function VideoItem({
           </div>
         ) : null}
         {isActive && !isPlaying ? <div className="vi-paused">▶</div> : null}
+        {iconOnly && progress !== null ? (
+          <div className="vi-progress vi-progress-thumb" aria-hidden="true">
+            <span style={{ transform: `scaleX(${progress})` }} />
+          </div>
+        ) : null}
       </div>
 
       {!iconOnly ? (
@@ -248,6 +285,11 @@ function VideoItem({
                 {video.title}
               </span>
             )}
+            {progress !== null ? (
+              <div className="vi-progress vi-progress-meta" aria-hidden="true">
+                <span style={{ transform: `scaleX(${progress})` }} />
+              </div>
+            ) : null}
           </div>
           <button
             className="vi-del"
@@ -847,6 +889,75 @@ function App() {
   const shouldPlayRef = useRef(false)
   const dragCountRef = useRef(0)
 
+  const updateItemPlayback = useCallback(
+    (itemId: string, currentTime: number, duration: number, completed: boolean) => {
+      const roundedTime = Math.max(0, Math.floor(currentTime))
+      const roundedDuration = Math.max(0, Math.floor(duration))
+
+      setState((current) => {
+        let changed = false
+        const playlists = current.playlists.map((playlist) => {
+          let playlistChanged = false
+          const items = playlist.items.map((item) => {
+            if (item.id !== itemId) return item
+
+            const nextCompleted = completed || (roundedDuration > 0 && roundedTime >= roundedDuration - 1)
+            if (
+              item.currentTime === roundedTime &&
+              item.duration === roundedDuration &&
+              Boolean(item.completed) === nextCompleted
+            ) {
+              return item
+            }
+
+            changed = true
+            playlistChanged = true
+            return {
+              ...item,
+              currentTime: roundedTime,
+              duration: roundedDuration,
+              completed: nextCompleted,
+            }
+          })
+
+          return playlistChanged ? { ...playlist, items } : playlist
+        })
+
+        return changed ? { ...current, playlists } : current
+      })
+    },
+    [],
+  )
+
+  const readAndSaveActivePlayback = useCallback(
+    (player: YTPlayer) => {
+      const itemId = stateRef.current.settings.activeItemId
+      if (!itemId) return
+
+      const currentTime = player.getCurrentTime()
+      const duration = player.getDuration()
+      if (!Number.isFinite(currentTime) || !Number.isFinite(duration) || duration <= 0) return
+
+      updateItemPlayback(itemId, currentTime, duration, false)
+    },
+    [updateItemPlayback],
+  )
+
+  const markActiveItemCompleted = useCallback(
+    (player: YTPlayer) => {
+      const itemId = stateRef.current.settings.activeItemId
+      if (!itemId) return
+
+      const duration = player.getDuration()
+      const fallbackTime = player.getCurrentTime()
+      const completedAt = Number.isFinite(duration) && duration > 0 ? duration : fallbackTime
+      if (!Number.isFinite(completedAt) || completedAt <= 0) return
+
+      updateItemPlayback(itemId, completedAt, completedAt, true)
+    },
+    [updateItemPlayback],
+  )
+
   const activePlaylist = useMemo(() => {
     return (
       state.playlists.find((playlist) => playlist.id === state.settings.activePlaylistId) ??
@@ -915,7 +1026,16 @@ function App() {
         events: {
           onStateChange: (event) => {
             setIsPlaying(event.data === window.YT?.PlayerState.PLAYING)
-            if (event.data === window.YT?.PlayerState.ENDED) selectNextVideo(event.target)
+            if (
+              event.data === window.YT?.PlayerState.PAUSED ||
+              event.data === window.YT?.PlayerState.BUFFERING
+            ) {
+              readAndSaveActivePlayback(event.target)
+            }
+            if (event.data === window.YT?.PlayerState.ENDED) {
+              markActiveItemCompleted(event.target)
+              selectNextVideo(event.target)
+            }
           },
         },
       })
@@ -928,7 +1048,19 @@ function App() {
       playerRef.current = null
       setPlayerReady(false)
     }
-  }, [selectNextVideo])
+  }, [markActiveItemCompleted, readAndSaveActivePlayback, selectNextVideo])
+
+  useEffect(() => {
+    if (!isPlaying || !activeItem) return
+
+    const interval = window.setInterval(() => {
+      const player = playerRef.current
+      if (!player) return
+      readAndSaveActivePlayback(player)
+    }, 1000)
+
+    return () => window.clearInterval(interval)
+  }, [activeItem, isPlaying, readAndSaveActivePlayback])
 
   useEffect(() => {
     if (!activeItem) {
@@ -940,11 +1072,11 @@ function App() {
 
     if (shouldPlayRef.current) {
       shouldPlayRef.current = false
-      playerRef.current.loadVideoById(activeItem.videoId)
+      playerRef.current.loadVideoById(playerVideoPayload(activeItem))
       return
     }
 
-    playerRef.current.cueVideoById(activeItem.videoId)
+    playerRef.current.cueVideoById(playerVideoPayload(activeItem))
   }, [activeItem])
 
   const addVideosFromText = useCallback((text: string) => {
@@ -1164,7 +1296,7 @@ function App() {
     const selectedItem = activePlaylist.items.find((item) => item.id === itemId)
     if (itemId === stateRef.current.settings.activeItemId && selectedItem) {
       shouldPlayRef.current = false
-      playerRef.current?.loadVideoById(selectedItem.videoId)
+      playerRef.current?.loadVideoById(playerVideoPayload(selectedItem))
       playerRef.current?.playVideo()
       return
     }
@@ -1321,7 +1453,7 @@ function App() {
             {activeItem && !playerReady ? (
               <iframe
                 className="fallback-player"
-                src={`https://www.youtube.com/embed/${activeItem.videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+                src={embedUrl(activeItem)}
                 title={activeItem.title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen

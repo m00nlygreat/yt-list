@@ -29,10 +29,12 @@ declare global {
 
   interface YTPlayer {
     destroy: () => void
-    loadVideoById: (videoId: string) => void
-    cueVideoById: (videoId: string) => void
+    loadVideoById: (videoId: string | { videoId: string; startSeconds?: number }) => void
+    cueVideoById: (videoId: string | { videoId: string; startSeconds?: number }) => void
     playVideo: () => void
     stopVideo?: () => void
     seekTo?: (seconds: number) => void
+    getCurrentTime: () => number
+    getDuration: () => number
   }
 }

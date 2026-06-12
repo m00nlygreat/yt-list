@@ -42,7 +42,7 @@ body.is-reordering iframe {
   position: fixed;
   top: 0;
   bottom: 0;
-  width: 20px;
+  width: 48px;
   z-index: 50;
   cursor: pointer;
   background: transparent;
@@ -62,42 +62,44 @@ body.is-reordering iframe {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 160px;
+  width: 260px;
   opacity: 0;
   pointer-events: none;
   transition:
-    opacity 0.18s ease-out,
-    transform 0.18s ease-out;
+    opacity 0.44s ease-out,
+    transform 0.62s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .edge-trigger-r::after {
   right: 0;
-  transform: translateX(28px);
+  transform: translateX(28px) scaleX(0.35);
+  transform-origin: 100% 50%;
   background: radial-gradient(
-    ellipse 160px 630px at 100% var(--edge-y, 50%),
-    rgba(255, 255, 255, 0.32) 0%,
-    rgba(255, 255, 255, 0.14) 22%,
-    rgba(255, 255, 255, 0.04) 50%,
-    rgba(255, 255, 255, 0) 72%
+    ellipse 260px 1450px at 100% var(--edge-y, 50%),
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.28) 28%,
+    rgba(255, 255, 255, 0.1) 62%,
+    rgba(255, 255, 255, 0) 86%
   );
 }
 
 .edge-trigger-l::after {
   left: 0;
-  transform: translateX(-28px);
+  transform: translateX(-28px) scaleX(0.35);
+  transform-origin: 0% 50%;
   background: radial-gradient(
-    ellipse 160px 630px at 0% var(--edge-y, 50%),
-    rgba(255, 255, 255, 0.32) 0%,
-    rgba(255, 255, 255, 0.14) 22%,
-    rgba(255, 255, 255, 0.04) 50%,
-    rgba(255, 255, 255, 0) 72%
+    ellipse 260px 1450px at 0% var(--edge-y, 50%),
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.28) 28%,
+    rgba(255, 255, 255, 0.1) 62%,
+    rgba(255, 255, 255, 0) 86%
   );
 }
 
 .edge-trigger-r:hover::after,
 .edge-trigger-l:hover::after {
   opacity: 1;
-  transform: translateX(0);
+  transform: translateX(0) scaleX(1);
 }
 
 .main-content {

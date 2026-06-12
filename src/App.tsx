@@ -276,6 +276,7 @@ function PlaylistPanel({
   onAddPlaylist,
   onDeletePlaylist,
   onRenamePlaylist,
+  onClearPlaylist,
   onSelectPlaylist,
   onSelectItem,
   onDeleteItem,
@@ -297,6 +298,7 @@ function PlaylistPanel({
   onAddPlaylist: () => void
   onDeletePlaylist: (playlistId: string) => void
   onRenamePlaylist: (playlistId: string, name: string) => void
+  onClearPlaylist: () => void
   onSelectPlaylist: (playlistId: string) => void
   onSelectItem: (itemId: string) => void
   onDeleteItem: (itemId: string) => void
@@ -571,6 +573,13 @@ function PlaylistPanel({
     setRenamingId(null)
   }
 
+  function startCurrentPlaylistRename() {
+    if (!activePlaylist) return
+    setShowMenu(true)
+    setRenamingId(activePlaylist.id)
+    setRenameValue(activePlaylist.name)
+  }
+
   return (
     <aside
       className={`panel ${panelSide === 'right' ? 'panel-r' : 'panel-l'}`}
@@ -675,8 +684,8 @@ function PlaylistPanel({
                 ) : null}
               </div>
 
-              <button className="icon-btn add-icon" type="button" onClick={() => setShowUrlInput((value) => !value)} title="URL 추가">
-                +
+              <button className="icon-btn rename-icon" type="button" onClick={startCurrentPlaylistRename} title="플레이리스트 이름 변경">
+                ✎
               </button>
               <button className="icon-btn side-icon" type="button" onClick={onToggleSide} title={panelSide === 'right' ? '왼쪽으로' : '오른쪽으로'}>
                 {panelSide === 'right' ? '⇦' : '⇨'}
@@ -684,8 +693,8 @@ function PlaylistPanel({
             </>
           ) : null}
 
-          <button className="icon-btn close-icon" type="button" onClick={onHide} title="패널 닫기">
-            ×
+          <button className="icon-btn clear-icon" type="button" onClick={onClearPlaylist} title="플레이리스트 비우기">
+            ⌫
           </button>
         </div>
 
@@ -1139,6 +1148,23 @@ function App() {
     }
   }
 
+  function clearPlaylist() {
+    if (activePlaylist.items.length === 0) return
+    const confirmed = window.confirm(`"${activePlaylist.name}" 플레이리스트를 비울까요?`)
+    if (!confirmed) return
+
+    setIsPlaying(false)
+    updateActivePlaylist((playlist) => ({
+      ...playlist,
+      items: [],
+      updatedAt: Date.now(),
+    }))
+    setState((current) => ({
+      ...current,
+      settings: { ...current.settings, activeItemId: null },
+    }))
+  }
+
   function renameItem(itemId: string, title: string) {
     updateActivePlaylist((playlist) => ({
       ...playlist,
@@ -1211,6 +1237,7 @@ function App() {
       onAddPlaylist={addPlaylist}
       onDeletePlaylist={deletePlaylist}
       onRenamePlaylist={renamePlaylist}
+      onClearPlaylist={clearPlaylist}
       onSelectPlaylist={selectPlaylist}
       onSelectItem={selectItem}
       onDeleteItem={deleteItem}

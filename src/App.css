@@ -854,7 +854,7 @@ body.is-reordering iframe {
 .vi-context-menu {
   position: fixed;
   z-index: 200;
-  min-width: 142px;
+  min-width: 172px;
   padding: 4px;
   background: #111;
   border: 1px solid #2a2a2a;

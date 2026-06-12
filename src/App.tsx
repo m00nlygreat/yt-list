@@ -6,7 +6,7 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react'
-import { Copy, PanelLeft, PanelRight, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Copy, ExternalLink, PanelLeft, PanelRight, Pencil, Plus, Trash2, X } from 'lucide-react'
 import './App.css'
 import { createPlaylist, loadState, makeId, saveState } from './storage'
 import type { AppState, PanelSide, PlayMode, Playlist, PlaylistItem } from './types'
@@ -560,6 +560,27 @@ function PlaylistPanel({
     }
   }
 
+  function watchContextMenuItemOnYoutube() {
+    if (!contextMenu) return
+    const item = activePlaylist.items.find((candidate) => candidate.id === contextMenu.itemId)
+    if (!item) return
+
+    const width = 1120
+    const height = 720
+    const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2))
+    const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2))
+    const opened = window.open(
+      videoUrl(item.videoId),
+      `youtube-${item.videoId}`,
+      `popup=yes,width=${width},height=${height},left=${left},top=${top},noopener,noreferrer`,
+    )
+
+    if (!opened) {
+      window.open(videoUrl(item.videoId), '_blank', 'noopener,noreferrer')
+    }
+    setContextMenu(null)
+  }
+
   function submitUrl(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!urlValue.trim()) return
@@ -782,8 +803,8 @@ function PlaylistPanel({
         <div
           className="vi-context-menu"
           style={{
-            left: `${Math.min(contextMenu.x, window.innerWidth - 150)}px`,
-            top: `${Math.min(contextMenu.y, window.innerHeight - 42)}px`,
+            left: `${Math.min(contextMenu.x, window.innerWidth - 180)}px`,
+            top: `${Math.min(contextMenu.y, window.innerHeight - 76)}px`,
           }}
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
@@ -791,6 +812,10 @@ function PlaylistPanel({
           <button type="button" className="vi-context-menu-item" onClick={copyContextMenuLink}>
             <Copy size={13} strokeWidth={2} />
             <span>Copy link</span>
+          </button>
+          <button type="button" className="vi-context-menu-item" onClick={watchContextMenuItemOnYoutube}>
+            <ExternalLink size={13} strokeWidth={2} />
+            <span>Watch on youtube</span>
           </button>
         </div>
       ) : null}

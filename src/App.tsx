@@ -986,13 +986,17 @@ function App() {
 
   useEffect(() => {
     function isAppTextDragEvent(event: globalThis.DragEvent) {
+      if (!hasTextDrop(event.dataTransfer)) return false
+
       const target = event.target
-      if (!(target instanceof Element)) return false
-      return Boolean(target.closest('.app')) && hasTextDrop(event.dataTransfer)
+      if (!(target instanceof Element)) return true
+
+      return Boolean(target.closest('.app')) || target === document.documentElement || target === document.body
     }
 
     function handleWindowDragEnter(event: globalThis.DragEvent) {
       if (!isAppTextDragEvent(event)) return
+      event.preventDefault()
       event.stopPropagation()
       dragCountRef.current += 1
       setIsDragging(true)
@@ -1125,6 +1129,14 @@ function App() {
   }
 
   function selectItem(itemId: string) {
+    const selectedItem = activePlaylist.items.find((item) => item.id === itemId)
+    if (itemId === stateRef.current.settings.activeItemId && selectedItem) {
+      shouldPlayRef.current = false
+      playerRef.current?.loadVideoById(selectedItem.videoId)
+      playerRef.current?.playVideo()
+      return
+    }
+
     shouldPlayRef.current = true
     setState((current) => ({
       ...current,

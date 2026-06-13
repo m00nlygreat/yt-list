@@ -32,9 +32,12 @@ declare global {
     loadVideoById: (videoId: string, startSeconds?: number) => void
     cueVideoById: (videoId: string, startSeconds?: number) => void
     playVideo: () => void
+    pauseVideo?: () => void
     stopVideo?: () => void
     seekTo?: (seconds: number) => void
     getCurrentTime: () => number
     getDuration: () => number
+    getVolume?: () => number
+    setVolume?: (volume: number) => void
   }
 }

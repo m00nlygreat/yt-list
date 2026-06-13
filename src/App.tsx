@@ -387,6 +387,7 @@ function NowPlaying({
   const currentTime = item?.currentTime ?? 0
   const duration = item?.duration ?? 0
   const canSeek = duration > 0
+  const seekProgress = canSeek ? Math.max(0, Math.min(1, currentTime / duration)) : 0
   const playModes = [
     { mode: 'sequence' as const, Icon: SeqIcon, title: '순차' },
     { mode: 'shuffle' as const, Icon: ShuffleIcon, title: '셔플' },
@@ -468,14 +469,8 @@ function NowPlaying({
                 }
               }}
             >
-              <span
-                className="np-progress-fill"
-                style={{ transform: `scaleX(${canSeek ? Math.max(0, Math.min(1, currentTime / duration)) : 0})` }}
-              />
-              <span
-                className="np-progress-handle"
-                style={{ left: `${canSeek ? Math.max(0, Math.min(1, currentTime / duration)) * 100 : 0}%` }}
-              />
+              <span className="np-progress-fill" style={{ transform: `translateY(-50%) scaleX(${seekProgress})` }} />
+              <span className="np-progress-handle" style={{ left: `${seekProgress * 100}%` }} />
             </div>
             <span>{canSeek ? formatPlaybackTime(duration) : '--:--'}</span>
           </div>
@@ -1114,7 +1109,12 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [playerReady, setPlayerReady] = useState(false)
   const [volume, setVolume] = useState(100)
-  const [addToast, setAddToast] = useState<{ id: number; side: PanelSide; count: number } | null>(null)
+  const [addToast, setAddToast] = useState<{
+    id: number
+    side: PanelSide
+    videoId: string
+    title: string
+  } | null>(null)
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YTPlayer | null>(null)
   const stateRef = useRef(state)
@@ -1324,9 +1324,9 @@ function App() {
     await navigator.clipboard.writeText(videoUrl(item.videoId))
   }, [])
 
-  const showPanelHiddenToast = useCallback((count: number, side: PanelSide) => {
+  const showPanelHiddenToast = useCallback((item: PlaylistItem, side: PanelSide) => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current)
-    setAddToast({ id: Date.now(), side, count })
+    setAddToast({ id: Date.now(), side, videoId: item.videoId, title: item.title })
     toastTimerRef.current = window.setTimeout(() => {
       setAddToast(null)
       toastTimerRef.current = null
@@ -1436,7 +1436,10 @@ function App() {
     )
     const newIds = ids.filter((videoId) => !existingIds.has(videoId))
     if (newIds.length === 0) {
-      if (current.settings.panelHidden) showPanelHiddenToast(0, current.settings.panelSide)
+      const existingItem = current.playlists
+        .find((playlist) => playlist.id === activePlaylistId)
+        ?.items.find((item) => ids.includes(item.videoId))
+      if (current.settings.panelHidden && existingItem) showPanelHiddenToast(existingItem, current.settings.panelSide)
       return
     }
 
@@ -1468,11 +1471,12 @@ function App() {
       }
     })
 
-    if (current.settings.panelHidden) showPanelHiddenToast(newItems.length, current.settings.panelSide)
+    if (current.settings.panelHidden) showPanelHiddenToast(newItems[0], current.settings.panelSide)
 
     for (const item of newItems) {
       fetchVideoTitle(item.videoId).then((title) => {
         if (!title) return
+        setAddToast((toast) => (toast?.videoId === item.videoId ? { ...toast, title } : toast))
         setState((previous) => ({
           ...previous,
           playlists: previous.playlists.map((playlist) =>
@@ -1835,7 +1839,8 @@ function App() {
 
       {addToast ? (
         <div className={`add-toast add-toast-${addToast.side}`} key={addToast.id}>
-          {addToast.count > 0 ? `${addToast.count}개 영상이 추가되었습니다` : '이미 추가된 영상입니다'}
+          <img className="add-toast-thumb" src={thumbnailUrl(addToast.videoId)} alt="" />
+          <div className="add-toast-title">{addToast.title}</div>
         </div>
       ) : null}
 

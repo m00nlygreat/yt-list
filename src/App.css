@@ -1050,7 +1050,7 @@ body.is-reordering iframe {
   left: 0;
   right: 0;
   top: 50%;
-  height: 5px;
+  height: 4px;
   transform: translateY(-50%);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
@@ -1061,7 +1061,7 @@ body.is-reordering iframe {
   left: 0;
   right: 0;
   top: 50%;
-  height: 5px;
+  height: 4px;
   transform: translateY(-50%) scaleX(0);
   transform-origin: left center;
   border-radius: 999px;
@@ -1072,23 +1072,23 @@ body.is-reordering iframe {
 .np-progress-handle {
   position: absolute;
   top: 50%;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(201, 50, 50, 0.18);
-  transform: translate(-50%, -50%) scale(0.78);
-  opacity: 0;
+  background: #c93232;
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.48),
+    0 0 0 4px rgba(201, 50, 50, 0.18);
+  transform: translate(-50%, -50%) scale(0.9);
+  opacity: 1;
   pointer-events: none;
   transition:
-    opacity 0.12s,
     transform 0.12s;
 }
 
 .np-progress:hover .np-progress-handle,
 .np-progress:focus-visible .np-progress-handle,
 .np-progress:active .np-progress-handle {
-  opacity: 1;
   transform: translate(-50%, -50%) scale(1);
 }
 
@@ -1131,8 +1131,11 @@ body.is-reordering iframe {
   position: fixed;
   bottom: 18px;
   z-index: 80;
-  max-width: min(280px, calc(100vw - 36px));
-  padding: 10px 14px;
+  width: min(320px, calc(100vw - 36px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 7px;
   background: rgba(14, 14, 14, 0.94);
@@ -1141,6 +1144,27 @@ body.is-reordering iframe {
   font-size: 12px;
   pointer-events: none;
   animation: toast-in 0.16s ease-out;
+}
+
+.add-toast-thumb {
+  width: 76px;
+  height: 43px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  object-fit: cover;
+  background: #050505;
+}
+
+.add-toast-title {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: rgba(255, 255, 255, 0.93);
+  font-size: 12px;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .add-toast-left {

@@ -838,19 +838,7 @@ function PlaylistPanel({
     const item = activePlaylist.items.find((candidate) => candidate.id === contextMenu.itemId)
     if (!item) return
 
-    const width = 1120
-    const height = 720
-    const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2))
-    const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2))
-    const opened = window.open(
-      videoUrl(item.videoId),
-      `youtube-${item.videoId}`,
-      `popup=yes,width=${width},height=${height},left=${left},top=${top},noopener,noreferrer`,
-    )
-
-    if (!opened) {
-      window.open(videoUrl(item.videoId), '_blank', 'noopener,noreferrer')
-    }
+    window.open(videoUrl(item.videoId), '_blank', 'noopener,noreferrer')
     setContextMenu(null)
   }
 

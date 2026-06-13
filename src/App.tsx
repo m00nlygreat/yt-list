@@ -387,64 +387,114 @@ function NowPlaying({
   const currentTime = item?.currentTime ?? 0
   const duration = item?.duration ?? 0
   const canSeek = duration > 0
+  const playModes = [
+    { mode: 'sequence' as const, Icon: SeqIcon, title: '순차' },
+    { mode: 'shuffle' as const, Icon: ShuffleIcon, title: '셔플' },
+    { mode: 'repeat-one' as const, Icon: RepeatIcon, title: '반복' },
+  ]
+  const currentModeIndex = Math.max(
+    0,
+    playModes.findIndex((candidate) => candidate.mode === playMode),
+  )
+  const currentMode = playModes[currentModeIndex]
+  const CurrentModeIcon = currentMode.Icon
+
+  function togglePlayMode() {
+    onSetPlayMode(playModes[(currentModeIndex + 1) % playModes.length].mode)
+  }
+
+  function seekFromPointer(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!canSeek) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const ratio = rect.width <= 0 ? 0 : Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
+    onSeek(ratio * duration)
+  }
 
   return (
     <div className={['now-playing', iconOnly ? 'now-playing-compact' : ''].filter(Boolean).join(' ')}>
       {!iconOnly ? (
-        <>
-          <div className="np-label">NOW PLAYING</div>
-          <div className="np-title">{item?.title ?? '재생 중인 영상 없음'}</div>
-        </>
+        <div className="np-title">{item?.title ?? '재생 중인 영상 없음'}</div>
       ) : null}
-
-      <div className="np-transport">
-        <button className="np-btn" type="button" onClick={onPrevious} title="이전">
-          <SkipBack size={17} strokeWidth={2.1} />
-        </button>
-        <button className="np-btn np-play" type="button" onClick={onTogglePlay} title={isPlaying ? '일시정지' : '재생'}>
-          {isPlaying ? <Pause size={17} strokeWidth={2.3} /> : <Play size={17} strokeWidth={2.3} />}
-        </button>
-        <button className="np-btn" type="button" onClick={onNext} title="다음">
-          <SkipForward size={17} strokeWidth={2.1} />
-        </button>
-      </div>
 
       {!iconOnly ? (
         <>
           <div className="np-seek-row">
             <span>{formatPlaybackTime(currentTime)}</span>
-            <input
-              className="np-range"
-              type="range"
-              min="0"
-              max={Math.max(1, duration)}
-              step="1"
-              value={Math.min(currentTime, Math.max(1, duration))}
-              disabled={!canSeek}
-              onChange={(event) => onSeek(Number(event.currentTarget.value))}
+            <div
+              className={`np-progress ${canSeek ? '' : 'np-progress-disabled'}`}
+              role="slider"
+              tabIndex={canSeek ? 0 : -1}
               aria-label="재생 위치"
-            />
+              aria-valuemin={0}
+              aria-valuemax={Math.max(1, Math.floor(duration))}
+              aria-valuenow={Math.min(Math.floor(currentTime), Math.max(1, Math.floor(duration)))}
+              aria-disabled={!canSeek}
+              onPointerDown={(event) => {
+                if (!canSeek) return
+                event.currentTarget.setPointerCapture(event.pointerId)
+                seekFromPointer(event)
+              }}
+              onPointerMove={(event) => {
+                if (!canSeek || !event.currentTarget.hasPointerCapture(event.pointerId)) return
+                seekFromPointer(event)
+              }}
+              onPointerUp={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId)
+                }
+              }}
+              onPointerCancel={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId)
+                }
+              }}
+              onKeyDown={(event) => {
+                if (!canSeek) return
+                if (event.key === 'ArrowLeft') {
+                  event.preventDefault()
+                  onSeek(Math.max(0, currentTime - 5))
+                }
+                if (event.key === 'ArrowRight') {
+                  event.preventDefault()
+                  onSeek(Math.min(duration, currentTime + 5))
+                }
+                if (event.key === 'Home') {
+                  event.preventDefault()
+                  onSeek(0)
+                }
+                if (event.key === 'End') {
+                  event.preventDefault()
+                  onSeek(duration)
+                }
+              }}
+            >
+              <span
+                className="np-progress-fill"
+                style={{ transform: `scaleX(${canSeek ? Math.max(0, Math.min(1, currentTime / duration)) : 0})` }}
+              />
+              <span
+                className="np-progress-handle"
+                style={{ left: `${canSeek ? Math.max(0, Math.min(1, currentTime / duration)) * 100 : 0}%` }}
+              />
+            </div>
             <span>{canSeek ? formatPlaybackTime(duration) : '--:--'}</span>
           </div>
 
           <div className="np-bottom-row">
-            <div className="np-modes">
-              {[
-                { mode: 'sequence' as const, Icon: SeqIcon, title: '순차' },
-                { mode: 'shuffle' as const, Icon: ShuffleIcon, title: '셔플' },
-                { mode: 'repeat-one' as const, Icon: RepeatIcon, title: '반복' },
-              ].map(({ mode, Icon, title }) => (
-                <button
-                  key={mode}
-                  className={`mode-btn np-mode-btn ${playMode === mode ? 'active' : ''}`}
-                  type="button"
-                  onClick={() => onSetPlayMode(mode)}
-                  title={title}
-                >
-                  <Icon />
-                </button>
-              ))}
+            <div className="np-transport">
+              <button className="np-btn" type="button" onClick={onPrevious} title="이전">
+                <SkipBack size={15} strokeWidth={2.1} />
+              </button>
+              <button className="np-btn np-play" type="button" onClick={onTogglePlay} title={isPlaying ? '일시정지' : '재생'}>
+                {isPlaying ? <Pause size={15} strokeWidth={2.3} /> : <Play size={15} strokeWidth={2.3} />}
+              </button>
+              <button className="np-btn" type="button" onClick={onNext} title="다음">
+                <SkipForward size={15} strokeWidth={2.1} />
+              </button>
             </div>
+            <button className="mode-btn np-mode-btn active" type="button" onClick={togglePlayMode} title={currentMode.title}>
+              <CurrentModeIcon />
+            </button>
             <label className="np-volume" title="볼륨">
               <Volume2 size={15} strokeWidth={2} />
               <input
@@ -460,7 +510,22 @@ function NowPlaying({
             </label>
           </div>
         </>
-      ) : null}
+      ) : (
+        <div className="np-transport">
+          <button className="np-btn" type="button" onClick={onPrevious} title="이전">
+            <SkipBack size={15} strokeWidth={2.1} />
+          </button>
+          <button className="np-btn np-play" type="button" onClick={onTogglePlay} title={isPlaying ? '일시정지' : '재생'}>
+            {isPlaying ? <Pause size={15} strokeWidth={2.3} /> : <Play size={15} strokeWidth={2.3} />}
+          </button>
+          <button className="np-btn" type="button" onClick={onNext} title="다음">
+            <SkipForward size={15} strokeWidth={2.1} />
+          </button>
+          <button className="mode-btn np-mode-btn active" type="button" onClick={togglePlayMode} title={currentMode.title}>
+            <CurrentModeIcon />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

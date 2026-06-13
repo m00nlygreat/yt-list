@@ -6,7 +6,21 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react'
-import { Copy, ExternalLink, PanelLeft, PanelRight, Pencil, Plus, Trash2, X } from 'lucide-react'
+import {
+  Copy,
+  ExternalLink,
+  Pause,
+  PanelLeft,
+  PanelRight,
+  Pencil,
+  Play,
+  Plus,
+  SkipBack,
+  SkipForward,
+  Trash2,
+  Volume2,
+  X,
+} from 'lucide-react'
 import './App.css'
 import { createPlaylist, loadState, makeId, saveState } from './storage'
 import type { AppState, PanelSide, PlayMode, Playlist, PlaylistItem } from './types'
@@ -146,6 +160,15 @@ function formatPlaybackTime(seconds: number): string {
   }
 
   return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  )
 }
 
 function embedUrl(item: PlaylistItem): string {
@@ -336,12 +359,120 @@ function VideoItem({
   )
 }
 
+function NowPlaying({
+  item,
+  isPlaying,
+  playMode,
+  volume,
+  iconOnly,
+  onTogglePlay,
+  onPrevious,
+  onNext,
+  onSeek,
+  onSetPlayMode,
+  onSetVolume,
+}: {
+  item: PlaylistItem | null
+  isPlaying: boolean
+  playMode: PlayMode
+  volume: number
+  iconOnly: boolean
+  onTogglePlay: () => void
+  onPrevious: () => void
+  onNext: () => void
+  onSeek: (seconds: number) => void
+  onSetPlayMode: (mode: PlayMode) => void
+  onSetVolume: (volume: number) => void
+}) {
+  const currentTime = item?.currentTime ?? 0
+  const duration = item?.duration ?? 0
+  const canSeek = duration > 0
+
+  return (
+    <div className={['now-playing', iconOnly ? 'now-playing-compact' : ''].filter(Boolean).join(' ')}>
+      {!iconOnly ? (
+        <>
+          <div className="np-label">NOW PLAYING</div>
+          <div className="np-title">{item?.title ?? '재생 중인 영상 없음'}</div>
+        </>
+      ) : null}
+
+      <div className="np-transport">
+        <button className="np-btn" type="button" onClick={onPrevious} title="이전">
+          <SkipBack size={17} strokeWidth={2.1} />
+        </button>
+        <button className="np-btn np-play" type="button" onClick={onTogglePlay} title={isPlaying ? '일시정지' : '재생'}>
+          {isPlaying ? <Pause size={17} strokeWidth={2.3} /> : <Play size={17} strokeWidth={2.3} />}
+        </button>
+        <button className="np-btn" type="button" onClick={onNext} title="다음">
+          <SkipForward size={17} strokeWidth={2.1} />
+        </button>
+      </div>
+
+      {!iconOnly ? (
+        <>
+          <div className="np-seek-row">
+            <span>{formatPlaybackTime(currentTime)}</span>
+            <input
+              className="np-range"
+              type="range"
+              min="0"
+              max={Math.max(1, duration)}
+              step="1"
+              value={Math.min(currentTime, Math.max(1, duration))}
+              disabled={!canSeek}
+              onChange={(event) => onSeek(Number(event.currentTarget.value))}
+              aria-label="재생 위치"
+            />
+            <span>{canSeek ? formatPlaybackTime(duration) : '--:--'}</span>
+          </div>
+
+          <div className="np-bottom-row">
+            <div className="np-modes">
+              {[
+                { mode: 'sequence' as const, Icon: SeqIcon, title: '순차' },
+                { mode: 'shuffle' as const, Icon: ShuffleIcon, title: '셔플' },
+                { mode: 'repeat-one' as const, Icon: RepeatIcon, title: '반복' },
+              ].map(({ mode, Icon, title }) => (
+                <button
+                  key={mode}
+                  className={`mode-btn np-mode-btn ${playMode === mode ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => onSetPlayMode(mode)}
+                  title={title}
+                >
+                  <Icon />
+                </button>
+              ))}
+            </div>
+            <label className="np-volume" title="볼륨">
+              <Volume2 size={15} strokeWidth={2} />
+              <input
+                className="np-range"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={volume}
+                onChange={(event) => onSetVolume(Number(event.currentTarget.value))}
+                aria-label="볼륨"
+              />
+            </label>
+          </div>
+        </>
+      ) : null}
+    </div>
+  )
+}
+
 function PlaylistPanel({
   playlists,
   activePlaylist,
+  activeItem,
   activeItemId,
   isPlaying,
   playMode,
+  volume,
   panelSide,
   panelWidth,
   onAddPlaylist,
@@ -353,7 +484,12 @@ function PlaylistPanel({
   onDeleteItem,
   onRenameItem,
   onReorderItem,
+  onTogglePlay,
+  onPrevious,
+  onNext,
+  onSeek,
   onSetPlayMode,
+  onSetVolume,
   onToggleSide,
   onHide,
   onResize,
@@ -361,9 +497,11 @@ function PlaylistPanel({
 }: {
   playlists: Playlist[]
   activePlaylist: Playlist
+  activeItem: PlaylistItem | null
   activeItemId: string | null
   isPlaying: boolean
   playMode: PlayMode
+  volume: number
   panelSide: PanelSide
   panelWidth: number
   onAddPlaylist: () => void
@@ -375,7 +513,12 @@ function PlaylistPanel({
   onDeleteItem: (itemId: string) => void
   onRenameItem: (itemId: string, title: string) => void
   onReorderItem: (fromItemId: string, insertIndex: number) => void
+  onTogglePlay: () => void
+  onPrevious: () => void
+  onNext: () => void
+  onSeek: (seconds: number) => void
   onSetPlayMode: (mode: PlayMode) => void
+  onSetVolume: (volume: number) => void
   onToggleSide: () => void
   onHide: () => void
   onResize: (width: number) => void
@@ -791,27 +934,7 @@ function PlaylistPanel({
           </button>
         </div>
 
-        {!iconOnly ? (
-          <div className="panel-hdr-modes">
-            {[
-              { mode: 'sequence' as const, Icon: SeqIcon, title: '순서대로' },
-              { mode: 'shuffle' as const, Icon: ShuffleIcon, title: '셔플' },
-              { mode: 'repeat-one' as const, Icon: RepeatIcon, title: '한 곡 반복' },
-            ].map(({ mode, Icon, title }) => (
-              <button
-                key={mode}
-                className={`mode-btn ${playMode === mode ? 'active' : ''}`}
-                type="button"
-                onClick={() => onSetPlayMode(mode)}
-                title={title}
-              >
-                <Icon />
-              </button>
-            ))}
-            <div className="panel-mode-spacer" />
-            <span className="panel-count">{activePlaylist.items.length}개</span>
-          </div>
-        ) : null}
+        {!iconOnly ? <div className="panel-hdr-count"><span className="panel-count">{activePlaylist.items.length}개</span></div> : null}
       </div>
 
       {showUrlInput && !iconOnly ? (
@@ -889,6 +1012,20 @@ function PlaylistPanel({
           </button>
         </div>
       ) : null}
+
+      <NowPlaying
+        item={activeItem}
+        isPlaying={isPlaying}
+        playMode={playMode}
+        volume={volume}
+        iconOnly={iconOnly}
+        onTogglePlay={onTogglePlay}
+        onPrevious={onPrevious}
+        onNext={onNext}
+        onSeek={onSeek}
+        onSetPlayMode={onSetPlayMode}
+        onSetVolume={onSetVolume}
+      />
     </aside>
   )
 }
@@ -911,11 +1048,14 @@ function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playerReady, setPlayerReady] = useState(false)
+  const [volume, setVolume] = useState(100)
+  const [addToast, setAddToast] = useState<{ id: number; side: PanelSide; count: number } | null>(null)
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YTPlayer | null>(null)
   const stateRef = useRef(state)
   const shouldPlayRef = useRef(false)
   const dragCountRef = useRef(0)
+  const toastTimerRef = useRef<number | null>(null)
 
   const updateItemPlayback = useCallback(
     (itemId: string, currentTime: number, duration: number, completed: boolean) => {
@@ -1004,7 +1144,7 @@ function App() {
   }, [state])
 
   const selectNextVideo = useCallback(
-    (player?: YTPlayer) => {
+    (player?: YTPlayer, respectRepeatMode = false) => {
       const current = stateRef.current
       const playlist =
         current.playlists.find((candidate) => candidate.id === current.settings.activePlaylistId) ??
@@ -1013,7 +1153,7 @@ function App() {
 
       const currentIndex = playlist.items.findIndex((item) => item.id === current.settings.activeItemId)
 
-      if (current.settings.playMode === 'repeat-one') {
+      if (respectRepeatMode && current.settings.playMode === 'repeat-one') {
         player?.seekTo?.(0)
         player?.playVideo()
         return
@@ -1033,6 +1173,100 @@ function App() {
     },
     [],
   )
+
+  const selectPreviousVideo = useCallback(() => {
+    const current = stateRef.current
+    const playlist =
+      current.playlists.find((candidate) => candidate.id === current.settings.activePlaylistId) ??
+      current.playlists[0]
+    if (!playlist || playlist.items.length === 0) return
+
+    const currentIndex = playlist.items.findIndex((item) => item.id === current.settings.activeItemId)
+    const previousIndex = currentIndex <= 0 ? playlist.items.length - 1 : currentIndex - 1
+    shouldPlayRef.current = true
+    setState((previous) => ({
+      ...previous,
+      settings: { ...previous.settings, activeItemId: playlist.items[previousIndex].id },
+    }))
+  }, [])
+
+  const playActiveOrFirst = useCallback(() => {
+    const current = stateRef.current
+    const playlist =
+      current.playlists.find((candidate) => candidate.id === current.settings.activePlaylistId) ??
+      current.playlists[0]
+    const activeId = current.settings.activeItemId ?? playlist?.items[0]?.id
+    if (!activeId) return
+
+    if (activeId !== current.settings.activeItemId) {
+      shouldPlayRef.current = true
+      setState((previous) => ({
+        ...previous,
+        settings: { ...previous.settings, activeItemId: activeId },
+      }))
+      return
+    }
+
+    playerRef.current?.playVideo()
+  }, [])
+
+  const togglePlayback = useCallback(() => {
+    if (isPlaying) {
+      playerRef.current?.pauseVideo?.()
+      return
+    }
+    playActiveOrFirst()
+  }, [isPlaying, playActiveOrFirst])
+
+  const seekActiveBy = useCallback(
+    (deltaSeconds: number) => {
+      const player = playerRef.current
+      if (!player) return
+      const currentTime = player.getCurrentTime()
+      const duration = player.getDuration()
+      if (!Number.isFinite(currentTime)) return
+      const upperBound = Number.isFinite(duration) && duration > 0 ? duration : Number.POSITIVE_INFINITY
+      const nextTime = Math.max(0, Math.min(upperBound, currentTime + deltaSeconds))
+      player.seekTo?.(nextTime)
+      readAndSaveActivePlayback(player)
+    },
+    [readAndSaveActivePlayback],
+  )
+
+  const seekActiveTo = useCallback(
+    (seconds: number) => {
+      const player = playerRef.current
+      if (!player || !Number.isFinite(seconds)) return
+      player.seekTo?.(Math.max(0, seconds))
+      readAndSaveActivePlayback(player)
+    },
+    [readAndSaveActivePlayback],
+  )
+
+  const setPlayerVolume = useCallback((nextVolume: number) => {
+    const clampedVolume = Math.max(0, Math.min(100, Math.round(nextVolume)))
+    setVolume(clampedVolume)
+    playerRef.current?.setVolume?.(clampedVolume)
+  }, [])
+
+  const copyActiveVideoLink = useCallback(async () => {
+    const current = stateRef.current
+    const playlist =
+      current.playlists.find((candidate) => candidate.id === current.settings.activePlaylistId) ??
+      current.playlists[0]
+    const item = playlist?.items.find((candidate) => candidate.id === current.settings.activeItemId)
+    if (!item) return
+    await navigator.clipboard.writeText(videoUrl(item.videoId))
+  }, [])
+
+  const showPanelHiddenToast = useCallback((count: number, side: PanelSide) => {
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current)
+    setAddToast({ id: Date.now(), side, count })
+    toastTimerRef.current = window.setTimeout(() => {
+      setAddToast(null)
+      toastTimerRef.current = null
+    }, 2000)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -1055,6 +1289,7 @@ function App() {
         events: {
           onReady: () => {
             setPlayerReady(true)
+            setVolume(playerRef.current?.getVolume?.() ?? 100)
           },
           onStateChange: (event) => {
             setIsPlaying(event.data === window.YT?.PlayerState.PLAYING)
@@ -1067,7 +1302,7 @@ function App() {
             }
             if (event.data === window.YT?.PlayerState.ENDED) {
               markActiveItemCompleted(event.target)
-              selectNextVideo(event.target)
+              selectNextVideo(event.target, true)
             }
           },
         },
@@ -1081,6 +1316,12 @@ function App() {
       setPlayerReady(false)
     }
   }, [markActiveItemCompleted, readAndSaveActivePlayback, selectNextVideo])
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (!isPlaying || !activeItemId) return
@@ -1130,10 +1371,7 @@ function App() {
     )
     const newIds = ids.filter((videoId) => !existingIds.has(videoId))
     if (newIds.length === 0) {
-      setState((previous) => ({
-        ...previous,
-        settings: { ...previous.settings, panelHidden: false },
-      }))
+      if (current.settings.panelHidden) showPanelHiddenToast(0, current.settings.panelSide)
       return
     }
 
@@ -1159,11 +1397,13 @@ function App() {
         ),
         settings: {
           ...previous.settings,
-          panelHidden: false,
+          panelHidden: previous.settings.panelHidden,
           activeItemId: shouldSelectFirst ? newItems[0].id : previous.settings.activeItemId,
         },
       }
     })
+
+    if (current.settings.panelHidden) showPanelHiddenToast(newItems.length, current.settings.panelSide)
 
     for (const item of newItems) {
       fetchVideoTitle(item.videoId).then((title) => {
@@ -1184,7 +1424,7 @@ function App() {
         }))
       })
     }
-  }, [])
+  }, [showPanelHiddenToast])
 
   useEffect(() => {
     function isAppTextDragEvent(event: globalThis.DragEvent) {
@@ -1251,14 +1491,7 @@ function App() {
       if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'v') return
       if (event.altKey || event.shiftKey) return
 
-      const target = event.target
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
-      ) {
-        return
-      }
+      if (isEditableTarget(event.target)) return
 
       try {
         const text = await navigator.clipboard.readText()
@@ -1273,6 +1506,52 @@ function App() {
     window.addEventListener('keydown', handlePasteShortcut)
     return () => window.removeEventListener('keydown', handlePasteShortcut)
   }, [addVideosFromText])
+
+  useEffect(() => {
+    function handleGlobalShortcut(event: globalThis.KeyboardEvent) {
+      if (isEditableTarget(event.target)) return
+      if (event.altKey || event.metaKey) return
+
+      const key = event.key.toLowerCase()
+      const hasCtrl = event.ctrlKey
+
+      if (hasCtrl && key === 'c') {
+        event.preventDefault()
+        copyActiveVideoLink()
+        return
+      }
+
+      if (event.ctrlKey || event.shiftKey) return
+
+      if (event.key === 'ArrowLeft' || key === 'z') {
+        event.preventDefault()
+        seekActiveBy(-10)
+        return
+      }
+      if (event.key === 'ArrowRight' || key === 'x') {
+        event.preventDefault()
+        seekActiveBy(10)
+        return
+      }
+      if (event.code === 'Space') {
+        event.preventDefault()
+        togglePlayback()
+        return
+      }
+      if (key === 's') {
+        event.preventDefault()
+        selectNextVideo(playerRef.current ?? undefined)
+        return
+      }
+      if (key === 'a') {
+        event.preventDefault()
+        selectPreviousVideo()
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalShortcut)
+    return () => window.removeEventListener('keydown', handleGlobalShortcut)
+  }, [copyActiveVideoLink, seekActiveBy, selectNextVideo, selectPreviousVideo, togglePlayback])
 
   function updateActivePlaylist(updater: (playlist: Playlist) => Playlist) {
     setState((current) => ({
@@ -1442,9 +1721,11 @@ function App() {
     <PlaylistPanel
       playlists={state.playlists}
       activePlaylist={activePlaylist}
+      activeItem={activeItem}
       activeItemId={state.settings.activeItemId}
       isPlaying={isPlaying}
       playMode={state.settings.playMode}
+      volume={volume}
       panelSide={state.settings.panelSide}
       panelWidth={state.settings.panelWidth}
       onAddPlaylist={addPlaylist}
@@ -1456,7 +1737,12 @@ function App() {
       onDeleteItem={deleteItem}
       onRenameItem={renameItem}
       onReorderItem={reorderItem}
+      onTogglePlay={togglePlayback}
+      onPrevious={selectPreviousVideo}
+      onNext={() => selectNextVideo(playerRef.current ?? undefined)}
+      onSeek={seekActiveTo}
       onSetPlayMode={(playMode) => setState((current) => ({ ...current, settings: { ...current.settings, playMode } }))}
+      onSetVolume={setPlayerVolume}
       onToggleSide={() => setPanelSide(state.settings.panelSide === 'left' ? 'right' : 'left')}
       onHide={() => setState((current) => ({ ...current, settings: { ...current.settings, panelHidden: true } }))}
       onResize={setPanelWidth}
@@ -1480,6 +1766,12 @@ function App() {
           side={state.settings.panelSide}
           onShow={() => setState((current) => ({ ...current, settings: { ...current.settings, panelHidden: false } }))}
         />
+      ) : null}
+
+      {addToast ? (
+        <div className={`add-toast add-toast-${addToast.side}`} key={addToast.id}>
+          {addToast.count > 0 ? `${addToast.count}개 영상이 추가되었습니다` : '이미 추가된 영상입니다'}
+        </div>
       ) : null}
 
       <div className="main-content">

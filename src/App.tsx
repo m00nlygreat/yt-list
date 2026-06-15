@@ -1312,6 +1312,13 @@ function App() {
     await navigator.clipboard.writeText(videoUrl(item.videoId))
   }, [])
 
+  const togglePanelHidden = useCallback(() => {
+    setState((current) => ({
+      ...current,
+      settings: { ...current.settings, panelHidden: !current.settings.panelHidden },
+    }))
+  }, [])
+
   const showPanelHiddenToast = useCallback((item: PlaylistItem, side: PanelSide) => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current)
     setAddToast({ id: Date.now(), side, videoId: item.videoId, title: item.title })
@@ -1595,6 +1602,11 @@ function App() {
         togglePlayback()
         return
       }
+      if (key === 'q') {
+        event.preventDefault()
+        togglePanelHidden()
+        return
+      }
       if (key === 's') {
         event.preventDefault()
         selectNextVideo(playerRef.current ?? undefined)
@@ -1608,7 +1620,33 @@ function App() {
 
     window.addEventListener('keydown', handleGlobalShortcut)
     return () => window.removeEventListener('keydown', handleGlobalShortcut)
-  }, [copyActiveVideoLink, seekActiveBy, selectNextVideo, selectPreviousVideo, togglePlayback])
+  }, [copyActiveVideoLink, seekActiveBy, selectNextVideo, selectPreviousVideo, togglePanelHidden, togglePlayback])
+
+  useEffect(() => {
+    function isMiddleClick(event: globalThis.MouseEvent) {
+      return event.button === 1
+    }
+
+    function handleMiddleMouseDown(event: globalThis.MouseEvent) {
+      if (!isMiddleClick(event)) return
+      if (isEditableTarget(event.target)) return
+      event.preventDefault()
+      togglePanelHidden()
+    }
+
+    function preventMiddleAuxClick(event: globalThis.MouseEvent) {
+      if (!isMiddleClick(event)) return
+      if (isEditableTarget(event.target)) return
+      event.preventDefault()
+    }
+
+    window.addEventListener('mousedown', handleMiddleMouseDown, true)
+    window.addEventListener('auxclick', preventMiddleAuxClick, true)
+    return () => {
+      window.removeEventListener('mousedown', handleMiddleMouseDown, true)
+      window.removeEventListener('auxclick', preventMiddleAuxClick, true)
+    }
+  }, [togglePanelHidden])
 
   function updateActivePlaylist(updater: (playlist: Playlist) => Playlist) {
     setState((current) => ({

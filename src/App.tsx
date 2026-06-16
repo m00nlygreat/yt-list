@@ -1125,6 +1125,7 @@ function App() {
   const playerRef = useRef<YTPlayer | null>(null)
   const stateRef = useRef(state)
   const shouldPlayRef = useRef(false)
+  const volumeRef = useRef(100)
   const dragCountRef = useRef(0)
   const toastTimerRef = useRef<number | null>(null)
   const playerClickTimerRef = useRef<number | null>(null)
@@ -1132,6 +1133,8 @@ function App() {
     pointerId: number
     startX: number
     startY: number
+    startTime: number
+    duration: number
     seeking: boolean
   } | null>(null)
   const suppressPlayerClickRef = useRef(false)
@@ -1330,6 +1333,7 @@ function App() {
 
   const setPlayerVolume = useCallback((nextVolume: number) => {
     const clampedVolume = Math.max(0, Math.min(100, Math.round(nextVolume)))
+    volumeRef.current = clampedVolume
     setVolume(clampedVolume)
     playerRef.current?.setVolume?.(clampedVolume)
   }, [])
@@ -1426,7 +1430,9 @@ function App() {
         events: {
           onReady: () => {
             setPlayerReady(true)
-            setVolume(playerRef.current?.getVolume?.() ?? 100)
+            const currentVolume = playerRef.current?.getVolume?.() ?? 100
+            volumeRef.current = currentVolume
+            setVolume(currentVolume)
           },
           onStateChange: (event) => {
             setIsPlaying(event.data === window.YT?.PlayerState.PLAYING)
@@ -1743,6 +1749,21 @@ function App() {
   ])
 
   useEffect(() => {
+    function handleGlobalWheel(event: globalThis.WheelEvent) {
+      if (event.ctrlKey || event.metaKey) return
+
+      const direction = Math.sign(event.deltaY)
+      if (direction === 0) return
+
+      event.preventDefault()
+      setPlayerVolume(volumeRef.current - direction * 5)
+    }
+
+    window.addEventListener('wheel', handleGlobalWheel, { passive: false })
+    return () => window.removeEventListener('wheel', handleGlobalWheel)
+  }, [setPlayerVolume])
+
+  useEffect(() => {
     function isMiddleClick(event: globalThis.MouseEvent) {
       return event.button === 1
     }
@@ -1943,7 +1964,7 @@ function App() {
     }, 0)
   }
 
-  function getPlayerOverlaySeekTarget(event: ReactPointerEvent<HTMLDivElement>) {
+  function getPlayerOverlayPlayback() {
     const playerDuration = playerRef.current?.getDuration?.()
     const duration =
       typeof playerDuration === 'number' && Number.isFinite(playerDuration) && playerDuration > 0
@@ -1951,24 +1972,44 @@ function App() {
         : (activeItem?.duration ?? 0)
     if (duration <= 0) return null
 
+    const playerTime = playerRef.current?.getCurrentTime?.()
+    const currentTime =
+      typeof playerTime === 'number' && Number.isFinite(playerTime)
+        ? playerTime
+        : (activeItem?.currentTime ?? 0)
+
+    return { currentTime: Math.max(0, Math.min(duration, currentTime)), duration }
+  }
+
+  function getPlayerOverlaySeekTarget(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = playerSeekDragRef.current
+    if (!drag) return null
+
     const rect = event.currentTarget.getBoundingClientRect()
-    const ratio = rect.width <= 0 ? 0 : Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
-    return { ratio, time: ratio * duration, duration }
+    const timeDelta = rect.width <= 0 ? 0 : ((event.clientX - drag.startX) / rect.width) * drag.duration
+    const time = Math.max(0, Math.min(drag.duration, drag.startTime + timeDelta))
+    const ratio = drag.duration <= 0 ? 0 : time / drag.duration
+    return { ratio, time, duration: drag.duration }
   }
 
   function handlePlayerOverlayPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return
+    const playback = getPlayerOverlayPlayback()
+    if (!playback) return
+
     event.currentTarget.focus({ preventScroll: true })
     event.currentTarget.setPointerCapture(event.pointerId)
     playerSeekDragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      startTime: playback.currentTime,
+      duration: playback.duration,
       seeking: false,
     }
     suppressPlayerClickRef.current = false
     setPlayerSeekPreview(null)
-    setPlayerSeekTimeDisplay(getPlayerOverlaySeekTarget(event))
+    setPlayerSeekTimeDisplay({ time: playback.currentTime, duration: playback.duration })
     event.preventDefault()
   }
 

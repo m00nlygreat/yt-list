@@ -1111,6 +1111,7 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [playerReady, setPlayerReady] = useState(false)
   const [iframeControlMode, setIframeControlMode] = useState(false)
+  const [playerSeekPreview, setPlayerSeekPreview] = useState<{ ratio: number; time: number } | null>(null)
   const [volume, setVolume] = useState(100)
   const [addToast, setAddToast] = useState<{
     id: number
@@ -1126,6 +1127,13 @@ function App() {
   const dragCountRef = useRef(0)
   const toastTimerRef = useRef<number | null>(null)
   const playerClickTimerRef = useRef<number | null>(null)
+  const playerSeekDragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    seeking: boolean
+  } | null>(null)
+  const suppressPlayerClickRef = useRef(false)
   const middleShortcutHandledRef = useRef(false)
 
   const updateItemPlayback = useCallback(
@@ -1208,6 +1216,11 @@ function App() {
     return activePlaylist.items.find((item) => item.id === state.settings.activeItemId) ?? null
   }, [activePlaylist.items, state.settings.activeItemId])
   const activeItemId = state.settings.activeItemId
+  const activePlaybackRatio =
+    activeItem && typeof activeItem.duration === 'number' && activeItem.duration > 0
+      ? Math.max(0, Math.min(1, (activeItem.currentTime ?? 0) / activeItem.duration))
+      : 0
+  const playerSeekProgressRatio = playerSeekPreview?.ratio ?? activePlaybackRatio
 
   useEffect(() => {
     stateRef.current = state
@@ -1929,15 +1942,89 @@ function App() {
     }, 0)
   }
 
-  function handlePlayerOverlayMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
+  function getPlayerOverlaySeekTarget(event: ReactPointerEvent<HTMLDivElement>) {
+    const playerDuration = playerRef.current?.getDuration?.()
+    const duration =
+      typeof playerDuration === 'number' && Number.isFinite(playerDuration) && playerDuration > 0
+        ? playerDuration
+        : (activeItem?.duration ?? 0)
+    if (duration <= 0) return null
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const ratio = rect.width <= 0 ? 0 : Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
+    return { ratio, time: ratio * duration }
+  }
+
+  function handlePlayerOverlayPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return
     event.currentTarget.focus({ preventScroll: true })
-    if (event.button === 0) event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    playerSeekDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      seeking: false,
+    }
+    suppressPlayerClickRef.current = false
+    setPlayerSeekPreview(null)
+    event.preventDefault()
+  }
+
+  function handlePlayerOverlayPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = playerSeekDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    const deltaX = event.clientX - drag.startX
+    const deltaY = event.clientY - drag.startY
+    if (!drag.seeking) {
+      if (Math.abs(deltaX) < 8 || Math.abs(deltaX) < Math.abs(deltaY)) return
+      drag.seeking = true
+      suppressPlayerClickRef.current = true
+      clearPlayerClickTimer()
+    }
+
+    event.preventDefault()
+    const target = getPlayerOverlaySeekTarget(event)
+    if (target) setPlayerSeekPreview(target)
+  }
+
+  function handlePlayerOverlayPointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = playerSeekDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    if (drag.seeking) {
+      event.preventDefault()
+      const target = getPlayerOverlaySeekTarget(event)
+      if (target) seekActiveTo(target.time)
+    }
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    playerSeekDragRef.current = null
+    setPlayerSeekPreview(null)
+  }
+
+  function handlePlayerOverlayPointerCancel(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = playerSeekDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    playerSeekDragRef.current = null
+    setPlayerSeekPreview(null)
   }
 
   function handlePlayerOverlayClick(event: ReactMouseEvent<HTMLDivElement>) {
     if (event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
+
+    if (suppressPlayerClickRef.current) {
+      suppressPlayerClickRef.current = false
+      return
+    }
 
     if (event.detail > 1) {
       clearPlayerClickTimer()
@@ -2042,11 +2129,23 @@ function App() {
             <div
               className="player-shortcut-layer"
               tabIndex={-1}
-              onMouseDown={handlePlayerOverlayMouseDown}
+              onPointerDown={handlePlayerOverlayPointerDown}
+              onPointerMove={handlePlayerOverlayPointerMove}
+              onPointerUp={handlePlayerOverlayPointerUp}
+              onPointerCancel={handlePlayerOverlayPointerCancel}
               onClick={handlePlayerOverlayClick}
               onDoubleClick={handlePlayerOverlayDoubleClick}
               aria-label="플레이어 단축키 영역"
             />
+          ) : null}
+
+          {activeItem ? (
+            <div className="player-progress-bar" aria-hidden="true">
+              <span
+                className="player-progress-bar-fill"
+                style={{ '--player-progress-ratio': playerSeekProgressRatio } as React.CSSProperties}
+              />
+            </div>
           ) : null}
 
           {!activeItem ? (

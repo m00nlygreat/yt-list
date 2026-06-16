@@ -141,9 +141,28 @@ body.is-reordering iframe {
   inset: 0;
   z-index: 2;
   background: transparent;
-  cursor: pointer;
+  cursor: ew-resize;
   outline: none;
   touch-action: manipulation;
+}
+
+.player-progress-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
+
+.player-progress-bar-fill {
+  position: absolute;
+  inset: 0;
+  background: #c93232;
+  transform: scaleX(var(--player-progress-ratio, 0));
+  transform-origin: left center;
 }
 
 .player-area.iframe-control-mode {

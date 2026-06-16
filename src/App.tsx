@@ -1112,6 +1112,7 @@ function App() {
   const [playerReady, setPlayerReady] = useState(false)
   const [iframeControlMode, setIframeControlMode] = useState(false)
   const [playerSeekPreview, setPlayerSeekPreview] = useState<{ ratio: number; time: number } | null>(null)
+  const [playerSeekTimeDisplay, setPlayerSeekTimeDisplay] = useState<{ time: number; duration: number } | null>(null)
   const [volume, setVolume] = useState(100)
   const [addToast, setAddToast] = useState<{
     id: number
@@ -1952,7 +1953,7 @@ function App() {
 
     const rect = event.currentTarget.getBoundingClientRect()
     const ratio = rect.width <= 0 ? 0 : Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
-    return { ratio, time: ratio * duration }
+    return { ratio, time: ratio * duration, duration }
   }
 
   function handlePlayerOverlayPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
@@ -1967,6 +1968,7 @@ function App() {
     }
     suppressPlayerClickRef.current = false
     setPlayerSeekPreview(null)
+    setPlayerSeekTimeDisplay(getPlayerOverlaySeekTarget(event))
     event.preventDefault()
   }
 
@@ -1985,7 +1987,10 @@ function App() {
 
     event.preventDefault()
     const target = getPlayerOverlaySeekTarget(event)
-    if (target) setPlayerSeekPreview(target)
+    if (target) {
+      setPlayerSeekPreview(target)
+      setPlayerSeekTimeDisplay(target)
+    }
   }
 
   function handlePlayerOverlayPointerUp(event: ReactPointerEvent<HTMLDivElement>) {
@@ -2003,6 +2008,7 @@ function App() {
     }
     playerSeekDragRef.current = null
     setPlayerSeekPreview(null)
+    setPlayerSeekTimeDisplay(null)
   }
 
   function handlePlayerOverlayPointerCancel(event: ReactPointerEvent<HTMLDivElement>) {
@@ -2014,6 +2020,7 @@ function App() {
     }
     playerSeekDragRef.current = null
     setPlayerSeekPreview(null)
+    setPlayerSeekTimeDisplay(null)
   }
 
   function handlePlayerOverlayClick(event: ReactMouseEvent<HTMLDivElement>) {
@@ -2145,6 +2152,12 @@ function App() {
                 className="player-progress-bar-fill"
                 style={{ '--player-progress-ratio': playerSeekProgressRatio } as React.CSSProperties}
               />
+              {playerSeekTimeDisplay ? (
+                <div className="player-progress-time-row">
+                  <span>{formatPlaybackTime(playerSeekTimeDisplay.time)}</span>
+                  <span>{formatPlaybackTime(playerSeekTimeDisplay.duration)}</span>
+                </div>
+              ) : null}
             </div>
           ) : null}
 

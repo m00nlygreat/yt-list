@@ -141,7 +141,7 @@ body.is-reordering iframe {
   inset: 0;
   z-index: 2;
   background: transparent;
-  cursor: ew-resize;
+  cursor: pointer;
   outline: none;
   touch-action: manipulation;
 }

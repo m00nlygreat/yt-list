@@ -1096,6 +1096,7 @@ function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playerReady, setPlayerReady] = useState(false)
+  const [iframeControlMode, setIframeControlMode] = useState(false)
   const [volume, setVolume] = useState(100)
   const [addToast, setAddToast] = useState<{
     id: number
@@ -1103,12 +1104,14 @@ function App() {
     videoId: string
     title: string
   } | null>(null)
+  const playerAreaRef = useRef<HTMLElement | null>(null)
   const playerHostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YTPlayer | null>(null)
   const stateRef = useRef(state)
   const shouldPlayRef = useRef(false)
   const dragCountRef = useRef(0)
   const toastTimerRef = useRef<number | null>(null)
+  const playerClickTimerRef = useRef<number | null>(null)
   const middleShortcutHandledRef = useRef(false)
 
   const updateItemPlayback = useCallback(
@@ -1381,8 +1384,35 @@ function App() {
   useEffect(() => {
     return () => {
       if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current)
+      if (playerClickTimerRef.current !== null) window.clearTimeout(playerClickTimerRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    setIframeControlMode(false)
+  }, [activeItemId])
+
+  useEffect(() => {
+    if (!iframeControlMode) return
+
+    setState((current) => {
+      if (!current.settings.panelHidden) return current
+      return { ...current, settings: { ...current.settings, panelHidden: false } }
+    })
+  }, [iframeControlMode])
+
+  useEffect(() => {
+    if (!iframeControlMode) return
+
+    function exitIframeControlMode(event: globalThis.MouseEvent) {
+      const target = event.target
+      if (target instanceof Node && playerAreaRef.current?.contains(target)) return
+      setIframeControlMode(false)
+    }
+
+    window.addEventListener('mousedown', exitIframeControlMode, true)
+    return () => window.removeEventListener('mousedown', exitIframeControlMode, true)
+  }, [iframeControlMode])
 
   useEffect(() => {
     if (!isPlaying || !activeItemId) return
@@ -1818,6 +1848,49 @@ function App() {
     if (text) addVideosFromText(text)
   }
 
+  function clearPlayerClickTimer() {
+    if (playerClickTimerRef.current === null) return
+    window.clearTimeout(playerClickTimerRef.current)
+    playerClickTimerRef.current = null
+  }
+
+  function enterIframeControlMode() {
+    setIframeControlMode(true)
+    window.setTimeout(() => {
+      const iframe = playerAreaRef.current?.querySelector('iframe')
+      iframe?.focus()
+    }, 0)
+  }
+
+  function handlePlayerOverlayMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
+    event.currentTarget.focus({ preventScroll: true })
+    if (event.button === 0) event.preventDefault()
+  }
+
+  function handlePlayerOverlayClick(event: ReactMouseEvent<HTMLDivElement>) {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (event.detail > 1) {
+      clearPlayerClickTimer()
+      return
+    }
+
+    clearPlayerClickTimer()
+    playerClickTimerRef.current = window.setTimeout(() => {
+      togglePlayback()
+      playerClickTimerRef.current = null
+    }, 180)
+  }
+
+  function handlePlayerOverlayDoubleClick(event: ReactMouseEvent<HTMLDivElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    clearPlayerClickTimer()
+    enterIframeControlMode()
+  }
+
   const panel = !state.settings.panelHidden ? (
     <PlaylistPanel
       playlists={state.playlists}
@@ -1879,7 +1952,11 @@ function App() {
       <div className="main-content">
         {state.settings.panelSide === 'left' ? panel : null}
 
-        <section className="player-area" aria-label="YouTube player">
+        <section
+          ref={playerAreaRef}
+          className={`player-area ${iframeControlMode ? 'iframe-control-mode' : ''}`}
+          aria-label="YouTube player"
+        >
           <div className="yt-wrapper">
             <div ref={playerHostRef} className="yt-api-host" />
             {activeItem && !playerReady ? (
@@ -1892,6 +1969,17 @@ function App() {
               />
             ) : null}
           </div>
+
+          {activeItem && !iframeControlMode ? (
+            <div
+              className="player-shortcut-layer"
+              tabIndex={-1}
+              onMouseDown={handlePlayerOverlayMouseDown}
+              onClick={handlePlayerOverlayClick}
+              onDoubleClick={handlePlayerOverlayDoubleClick}
+              aria-label="플레이어 단축키 영역"
+            />
+          ) : null}
 
           {!activeItem ? (
             <div className={`drop-overlay ${isDragging ? 'drag-active' : ''}`}>

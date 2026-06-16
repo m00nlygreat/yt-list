@@ -152,7 +152,7 @@ body.is-reordering iframe {
   right: 0;
   bottom: 0;
   z-index: 4;
-  height: 3px;
+  height: 5px;
   background: rgba(255, 255, 255, 0.28);
   pointer-events: none;
 }

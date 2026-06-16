@@ -542,6 +542,7 @@ function PlaylistPanel({
   onSelectPlaylist,
   onSelectItem,
   onDeleteItem,
+  onDeleteItemByDrop,
   onRenameItem,
   onReorderItem,
   onTogglePlay,
@@ -571,6 +572,7 @@ function PlaylistPanel({
   onSelectPlaylist: (playlistId: string) => void
   onSelectItem: (itemId: string) => void
   onDeleteItem: (itemId: string) => void
+  onDeleteItemByDrop: (itemId: string) => void
   onRenameItem: (itemId: string, title: string) => void
   onReorderItem: (fromItemId: string, insertIndex: number) => void
   onTogglePlay: () => void
@@ -749,8 +751,20 @@ function PlaylistPanel({
       if (currentPointer.active) {
         suppressSelectUntilRef.current = Date.now() + 350
       }
+      const dropTarget =
+        nativeEvent && currentPointer.active
+          ? document.elementFromPoint(nativeEvent.clientX, nativeEvent.clientY)
+          : null
+      const droppedOnPlayer =
+        dropTarget instanceof Element && Boolean(dropTarget.closest('.player-area'))
       if (currentPointer.active && currentTarget && currentTarget.fromId === currentPointer.fromId) {
-        onReorderItem(currentPointer.fromId, currentTarget.insertIndex)
+        if (droppedOnPlayer) {
+          onDeleteItemByDrop(currentPointer.fromId)
+        } else {
+          onReorderItem(currentPointer.fromId, currentTarget.insertIndex)
+        }
+      } else if (droppedOnPlayer) {
+        onDeleteItemByDrop(currentPointer.fromId)
       }
       if (source.hasPointerCapture(currentPointer.pointerId)) source.releasePointerCapture(currentPointer.pointerId)
       clearReorder()
@@ -1323,6 +1337,51 @@ function App() {
     }))
   }, [])
 
+  const deleteItemFromActivePlaylist = useCallback((itemId: string, playNextIfActive = false) => {
+    const current = stateRef.current
+    const currentPlaylist =
+      current.playlists.find((candidate) => candidate.id === current.settings.activePlaylistId) ?? current.playlists[0]
+    const currentItemIndex = currentPlaylist?.items.findIndex((item) => item.id === itemId) ?? -1
+    const isDeletingActiveItem = itemId === current.settings.activeItemId
+    const remainingItemCount =
+      currentPlaylist && currentItemIndex >= 0 ? Math.max(0, currentPlaylist.items.length - 1) : 0
+    const shouldPlayNext = isDeletingActiveItem && playNextIfActive && remainingItemCount > 0
+
+    if (isDeletingActiveItem) {
+      shouldPlayRef.current = shouldPlayNext
+      if (!shouldPlayNext) setIsPlaying(false)
+    }
+
+    setState((current) => {
+      const activePlaylistId = current.settings.activePlaylistId
+      const playlist =
+        current.playlists.find((candidate) => candidate.id === activePlaylistId) ?? current.playlists[0]
+      if (!playlist) return current
+
+      const itemIndex = playlist.items.findIndex((item) => item.id === itemId)
+      if (itemIndex < 0) return current
+
+      const isActiveItem = itemId === current.settings.activeItemId
+      const remainingItems = playlist.items.filter((item) => item.id !== itemId)
+      const nextActiveItemId =
+        isActiveItem && playNextIfActive && remainingItems.length > 0
+          ? remainingItems[itemIndex >= remainingItems.length ? 0 : itemIndex].id
+          : isActiveItem
+            ? null
+            : current.settings.activeItemId
+
+      return {
+        ...current,
+        playlists: current.playlists.map((candidate) =>
+          candidate.id === playlist.id
+            ? { ...candidate, items: remainingItems, updatedAt: Date.now() }
+            : candidate,
+        ),
+        settings: { ...current.settings, activeItemId: nextActiveItemId },
+      }
+    })
+  }, [])
+
   const showPanelHiddenToast = useCallback((item: PlaylistItem, side: PanelSide) => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current)
     setAddToast({ id: Date.now(), side, videoId: item.videoId, title: item.title })
@@ -1628,6 +1687,14 @@ function App() {
         seekActiveBy(10)
         return
       }
+      if (event.key === 'Delete') {
+        const activeId = stateRef.current.settings.activeItemId
+        if (activeId) {
+          event.preventDefault()
+          deleteItemFromActivePlaylist(activeId, true)
+        }
+        return
+      }
       if (event.code === 'Space') {
         event.preventDefault()
         togglePlayback()
@@ -1651,7 +1718,15 @@ function App() {
 
     window.addEventListener('keydown', handleGlobalShortcut)
     return () => window.removeEventListener('keydown', handleGlobalShortcut)
-  }, [copyActiveVideoLink, seekActiveBy, selectNextVideo, selectPreviousVideo, togglePanelHidden, togglePlayback])
+  }, [
+    copyActiveVideoLink,
+    deleteItemFromActivePlaylist,
+    seekActiveBy,
+    selectNextVideo,
+    selectPreviousVideo,
+    togglePanelHidden,
+    togglePlayback,
+  ])
 
   useEffect(() => {
     function isMiddleClick(event: globalThis.MouseEvent) {
@@ -1757,19 +1832,11 @@ function App() {
   }
 
   function deleteItem(itemId: string) {
-    updateActivePlaylist((playlist) => ({
-      ...playlist,
-      items: playlist.items.filter((item) => item.id !== itemId),
-      updatedAt: Date.now(),
-    }))
+    deleteItemFromActivePlaylist(itemId)
+  }
 
-    if (itemId === stateRef.current.settings.activeItemId) {
-      setIsPlaying(false)
-      setState((current) => ({
-        ...current,
-        settings: { ...current.settings, activeItemId: null },
-      }))
-    }
+  function deleteItemAndPlayNext(itemId: string) {
+    deleteItemFromActivePlaylist(itemId, true)
   }
 
   function clearPlaylist() {
@@ -1909,6 +1976,7 @@ function App() {
       onSelectPlaylist={selectPlaylist}
       onSelectItem={selectItem}
       onDeleteItem={deleteItem}
+      onDeleteItemByDrop={deleteItemAndPlayNext}
       onRenameItem={renameItem}
       onReorderItem={reorderItem}
       onTogglePlay={togglePlayback}

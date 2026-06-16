@@ -1818,31 +1818,6 @@ function App() {
     if (text) addVideosFromText(text)
   }
 
-  function handlePlayerShortcutMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
-    event.currentTarget.focus({ preventScroll: true })
-
-    if (event.button === 1) {
-      event.preventDefault()
-      middleShortcutHandledRef.current = true
-      togglePanelHidden()
-      return
-    }
-
-    if (event.button === 0) {
-      event.preventDefault()
-      togglePlayback()
-    }
-  }
-
-  function handlePlayerShortcutAuxClick(event: ReactMouseEvent<HTMLDivElement>) {
-    if (event.button !== 1) return
-    event.preventDefault()
-    if (!middleShortcutHandledRef.current) {
-      togglePanelHidden()
-    }
-    middleShortcutHandledRef.current = false
-  }
-
   const panel = !state.settings.panelHidden ? (
     <PlaylistPanel
       playlists={state.playlists}
@@ -1917,16 +1892,6 @@ function App() {
               />
             ) : null}
           </div>
-
-          {activeItem ? (
-            <div
-              className="player-shortcut-layer"
-              tabIndex={-1}
-              onMouseDown={handlePlayerShortcutMouseDown}
-              onAuxClick={handlePlayerShortcutAuxClick}
-              aria-label="플레이어 단축키 영역"
-            />
-          ) : null}
 
           {!activeItem ? (
             <div className={`drop-overlay ${isDragging ? 'drag-active' : ''}`}>

@@ -136,16 +136,6 @@ body.is-reordering iframe {
   inset: 0;
 }
 
-.player-shortcut-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  background: transparent;
-  cursor: pointer;
-  outline: none;
-  touch-action: manipulation;
-}
-
 .app-dragging .yt-api-host,
 .app-dragging .yt-api-host iframe,
 .app-dragging .fallback-player {

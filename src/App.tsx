@@ -2042,6 +2042,12 @@ function App() {
       event.preventDefault()
       const target = getPlayerOverlaySeekTarget(event)
       if (target) seekActiveTo(target.time)
+    } else if (!suppressPlayerClickRef.current) {
+      clearPlayerClickTimer()
+      playerClickTimerRef.current = window.setTimeout(() => {
+        togglePlayback()
+        playerClickTimerRef.current = null
+      }, 180)
     }
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -2062,28 +2068,6 @@ function App() {
     playerSeekDragRef.current = null
     setPlayerSeekPreview(null)
     setPlayerSeekTimeDisplay(null)
-  }
-
-  function handlePlayerOverlayClick(event: ReactMouseEvent<HTMLDivElement>) {
-    if (event.button !== 0) return
-    event.preventDefault()
-    event.stopPropagation()
-
-    if (suppressPlayerClickRef.current) {
-      suppressPlayerClickRef.current = false
-      return
-    }
-
-    if (event.detail > 1) {
-      clearPlayerClickTimer()
-      return
-    }
-
-    clearPlayerClickTimer()
-    playerClickTimerRef.current = window.setTimeout(() => {
-      togglePlayback()
-      playerClickTimerRef.current = null
-    }, 180)
   }
 
   function handlePlayerOverlayDoubleClick(event: ReactMouseEvent<HTMLDivElement>) {
@@ -2181,7 +2165,6 @@ function App() {
               onPointerMove={handlePlayerOverlayPointerMove}
               onPointerUp={handlePlayerOverlayPointerUp}
               onPointerCancel={handlePlayerOverlayPointerCancel}
-              onClick={handlePlayerOverlayClick}
               onDoubleClick={handlePlayerOverlayDoubleClick}
               aria-label="플레이어 단축키 영역"
             />

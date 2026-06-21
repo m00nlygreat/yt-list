@@ -171,6 +171,10 @@ function isEditableTarget(target: EventTarget | null): boolean {
   )
 }
 
+function isPanelTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(target.closest('.panel'))
+}
+
 function embedUrl(item: PlaylistItem): string {
   const params = new URLSearchParams({
     autoplay: '1',
@@ -1751,6 +1755,7 @@ function App() {
   useEffect(() => {
     function handleGlobalWheel(event: globalThis.WheelEvent) {
       if (event.ctrlKey || event.metaKey) return
+      if (isPanelTarget(event.target)) return
 
       const direction = Math.sign(event.deltaY)
       if (direction === 0) return

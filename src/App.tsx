@@ -1352,6 +1352,16 @@ function App() {
     await navigator.clipboard.writeText(videoUrl(item.videoId))
   }, [])
 
+  const openActiveVideoOnYoutube = useCallback(() => {
+    const current = stateRef.current
+    const playlist =
+      current.playlists.find((candidate) => candidate.id === current.settings.activePlaylistId) ??
+      current.playlists[0]
+    const item = playlist?.items.find((candidate) => candidate.id === current.settings.activeItemId)
+    if (!item) return
+    window.open(videoUrl(item.videoId), '_blank', 'noopener,noreferrer')
+  }, [])
+
   const togglePanelHidden = useCallback(() => {
     setState((current) => ({
       ...current,
@@ -1698,6 +1708,11 @@ function App() {
         copyActiveVideoLink()
         return
       }
+      if (hasCtrl && key === 'o') {
+        event.preventDefault()
+        openActiveVideoOnYoutube()
+        return
+      }
 
       if (event.ctrlKey || event.shiftKey) return
 
@@ -1745,6 +1760,7 @@ function App() {
   }, [
     copyActiveVideoLink,
     deleteItemFromActivePlaylist,
+    openActiveVideoOnYoutube,
     seekActiveBy,
     selectNextVideo,
     selectPreviousVideo,

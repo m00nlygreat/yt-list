@@ -459,12 +459,13 @@ body.is-reordering iframe {
   flex-shrink: 0;
   transition:
     color 0.12s,
-    background 0.12s;
+    background 0.12s,
+    transform 0.12s;
 }
 
 .mode-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
 }
 
 .mode-btn svg {
@@ -473,8 +474,8 @@ body.is-reordering iframe {
 }
 
 .icon-btn {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
 }
 
 .icon-btn svg {
@@ -495,6 +496,11 @@ body.is-reordering iframe {
 .mode-btn.active {
   color: #c93232;
   background: rgba(201, 50, 50, 0.08);
+}
+
+.mode-btn:active,
+.icon-btn:active {
+  transform: scale(0.96);
 }
 
 .pl-selector {
@@ -597,8 +603,8 @@ body.is-reordering iframe {
 
 .pl-del-btn {
   opacity: 0;
-  width: 18px;
-  height: 18px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -790,6 +796,8 @@ body.is-reordering iframe {
   height: 100%;
   object-fit: cover;
   display: block;
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline-offset: -1px;
 }
 
 .vi-bars {
@@ -894,6 +902,7 @@ body.is-reordering iframe {
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.78);
   word-break: break-word;
+  text-wrap: pretty;
 }
 
 .vi-active .vi-title {
@@ -943,8 +952,8 @@ body.is-reordering iframe {
 
 .vi-del {
   opacity: 0;
-  width: 22px;
-  height: 22px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -957,7 +966,8 @@ body.is-reordering iframe {
   transition:
     opacity 0.1s,
     color 0.1s,
-    background 0.1s;
+    background 0.1s,
+    transform 0.12s;
   padding: 0;
   line-height: 1;
 }
@@ -969,6 +979,10 @@ body.is-reordering iframe {
 .vi-del:hover {
   color: #c93232;
   background: rgba(201, 50, 50, 0.1);
+}
+
+.vi-del:active {
+  transform: scale(0.96);
 }
 
 .vi-context-menu {
@@ -984,7 +998,7 @@ body.is-reordering iframe {
 
 .vi-context-menu-item {
   width: 100%;
-  height: 30px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1039,8 +1053,8 @@ body.is-reordering iframe {
 }
 
 .np-btn {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1050,7 +1064,8 @@ body.is-reordering iframe {
   cursor: pointer;
   transition:
     color 0.12s,
-    background 0.12s;
+    background 0.12s,
+    transform 0.12s;
 }
 
 .np-btn:hover {
@@ -1065,6 +1080,10 @@ body.is-reordering iframe {
 
 .np-play:hover {
   background: #dc4040;
+}
+
+.np-btn:active {
+  transform: scale(0.96);
 }
 
 .np-seek-row {
@@ -1128,7 +1147,7 @@ body.is-reordering iframe {
 
 .np-progress {
   position: relative;
-  height: 18px;
+  height: 40px;
   min-width: 0;
   cursor: pointer;
   touch-action: none;
@@ -1200,8 +1219,8 @@ body.is-reordering iframe {
 }
 
 .np-mode-btn {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
 }
 
 .np-mode-btn svg {
@@ -1256,6 +1275,8 @@ body.is-reordering iframe {
   border-radius: 4px;
   object-fit: cover;
   background: #050505;
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline-offset: -1px;
 }
 
 .add-toast-title {
@@ -1268,6 +1289,7 @@ body.is-reordering iframe {
   font-size: 12px;
   line-height: 1.35;
   word-break: break-word;
+  text-wrap: pretty;
 }
 
 .add-toast-left {

@@ -1114,7 +1114,7 @@ function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playerReady, setPlayerReady] = useState(false)
-  const [iframeControlMode, setIframeControlMode] = useState(false)
+  const [iframeControlItemId, setIframeControlItemId] = useState<string | null>(null)
   const [playerSeekPreview, setPlayerSeekPreview] = useState<{ ratio: number; time: number } | null>(null)
   const [playerSeekTimeDisplay, setPlayerSeekTimeDisplay] = useState<{ time: number; duration: number } | null>(null)
   const [volume, setVolume] = useState(100)
@@ -1224,6 +1224,7 @@ function App() {
     return activePlaylist.items.find((item) => item.id === state.settings.activeItemId) ?? null
   }, [activePlaylist.items, state.settings.activeItemId])
   const activeItemId = state.settings.activeItemId
+  const iframeControlMode = Boolean(activeItemId && iframeControlItemId === activeItemId)
   const activePlaybackRatio =
     activeItem && typeof activeItem.duration === 'number' && activeItem.duration > 0
       ? Math.max(0, Math.min(1, (activeItem.currentTime ?? 0) / activeItem.duration))
@@ -1482,25 +1483,12 @@ function App() {
   }, [])
 
   useEffect(() => {
-    setIframeControlMode(false)
-  }, [activeItemId])
-
-  useEffect(() => {
-    if (!iframeControlMode) return
-
-    setState((current) => {
-      if (!current.settings.panelHidden) return current
-      return { ...current, settings: { ...current.settings, panelHidden: false } }
-    })
-  }, [iframeControlMode])
-
-  useEffect(() => {
     if (!iframeControlMode) return
 
     function exitIframeControlMode(event: globalThis.MouseEvent) {
       const target = event.target
       if (target instanceof Node && playerAreaRef.current?.contains(target)) return
-      setIframeControlMode(false)
+      setIframeControlItemId(null)
     }
 
     window.addEventListener('mousedown', exitIframeControlMode, true)
@@ -1978,7 +1966,13 @@ function App() {
   }
 
   function enterIframeControlMode() {
-    setIframeControlMode(true)
+    if (!activeItemId) return
+
+    setState((current) => {
+      if (!current.settings.panelHidden) return current
+      return { ...current, settings: { ...current.settings, panelHidden: false } }
+    })
+    setIframeControlItemId(activeItemId)
     window.setTimeout(() => {
       const iframe = playerAreaRef.current?.querySelector('iframe')
       iframe?.focus()
